@@ -63,7 +63,8 @@ String describeParameter (const String& id, float v)
 {
     using namespace ParamIDs;
 
-    if (id == tune || id == oscBTune) return signedText (v, " st");
+    if (id == tune || id == oscBTune || id == b3Tuning) return signedText (v, " st");
+    if (id == oscAOctave || id == oscBOctave || id == b3Octave) return "OCT " + String (v > 0.0f ? "+" : "") + String (roundToInt (v));
     if (id == volume || id == bass || id == treble || id == tubeInput || id == tubeOutput) return signedText (v, " dB");
     if (id == cutoff || id == cutoffLow) return formatHz (cutoffToHz (v));
     if (id == decay || id == accDecay)   return formatMs (decayToMs (v));
@@ -102,13 +103,39 @@ String helpForParameter (const String& id)
         { tune,        "Master tuning in semitones." },
         { volume,      "Master output level." },
         { echoOn,      "Echo on/off. Switching off lets the repeats ring out." },
-        { tubeOn,      "Tube distortion on/off (click-free)." },
+        { tubeOn,      "Three-band tube distortion on / off (click-free)." },
         { wave,        "Oscillator wave: saw, or the square shaped from the saw." },
         { retro,       "Vintage drift: slow pitch wander, per-note variation, softer top end." },
         { cutoffLow,   "Floor the filter envelope falls back to. At or above Cutoff it behaves classically." },
         { cutoff,      "Filter cutoff: where the resonant peak sits." },
         { resonance,   "Filter resonance. The diode model squelches but never whistles." },
         { transistor,  "Switch the filter from the diode ladder to a transistor ladder." },
+        { engine,      "ACID or 303: the synth this page shows. The sequencer plays the one you choose." },
+        { oscAOctave,  "Osc A octave: up or down by whole octaves." },
+        { oscBOctave,  "Osc B octave: up or down by whole octaves." },
+        { b3Wave,      "303 waveform: saw, or the square shaped from it." },
+        { b3Tuning,    "303 tuning in semitones." },
+        { b3Octave,    "303 octave: up or down by whole octaves." },
+        { b3Cutoff,    "303 cutoff (about 300 Hz - 2.7 kHz before the envelope)." },
+        { b3Resonance, "303 resonance: the squelch. More resonance also gives more accent sweep." },
+        { b3EnvMod,    "303 envelope amount. Like the hardware, it also lowers the base cutoff." },
+        { b3Decay,     "303 filter decay for normal notes. Accented notes always use the shortest decay." },
+        { b3Accent,    "303 accent: louder, brighter accented notes; runs of accents build the cutoff up." },
+        { b3Volume,    "303 volume." },
+        { b3Model,     "VCO model: Classic (a little analog wander), Stable (clean), Drift (more wander)." },
+        { b3AccurateGate, "Softer, slightly longer gate edges, like the hardware's VCA." },
+        { b3VcaNoise,  "The faint hiss of the hardware's VCA." },
+        { b3Vibrato,   "A gentle 5.5 Hz vibrato." },
+        { b3PhaseReset, "The oscillator restarts on every new note." },
+        { b3SlowSlide, "An aged slide capacitor: twice the glide time." },
+        { b3WeakAccentCap, "An aged accent capacitor: accents build up further." },
+        { b3InfSustain, "The VCA holds while the gate is open instead of decaying." },
+        { b3SoftAccent, "A gentler accent." },
+        { distPageOn,  "Dist: the whole Distortion page on / off." },
+        { distOn,      "Saturate / Foldback distortion on / off." },
+        { distMode,    "Saturate: warm tanh clipping. Foldback: the wave folds back on itself." },
+        { distDrive,   "How hard the distortion is driven." },
+        { distAmount,  "Distort: how much of the distorted signal you hear." },
         { filterMode,  "Filter type: low-pass (classic), band-pass or high-pass, all from the same ladder." },
         { oscALock,    "Phase lock: Osc A (and its unison voices) starts every note at the same point of its wave." },
         { oscBLock,    "Phase lock: Osc B starts every note at the same point of its wave." },
@@ -255,6 +282,37 @@ AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     knob (cutoff,    "Cutoff",     45.0f);
     knob (resonance, "Resonance",  65.0f);
     toggle (transistor, "Transistor", false);
+    choice (engine, "Synth", engineNames(), 0);
+    number (oscAOctave, "Osc A Octave", -2.0f, 2.0f, 0.0f);
+    number (oscBOctave, "Osc B Octave", -2.0f, 2.0f, 0.0f);
+
+    // 303 page
+    choice (b3Wave, "303 Waveform", b3WaveNames(), 0);
+    number (b3Tuning, "303 Tuning", -12.0f, 12.0f, 0.0f);
+    number (b3Octave, "303 Octave", -2.0f, 2.0f, 0.0f);
+    knob (b3Cutoff,    "303 Cutoff",    45.0f);
+    knob (b3Resonance, "303 Resonance", 70.0f);
+    knob (b3EnvMod,    "303 Env Mod",   55.0f);
+    knob (b3Decay,     "303 Decay",     40.0f);
+    knob (b3Accent,    "303 Accent",    65.0f);
+    knob (b3Volume,    "303 Volume",    70.0f);
+    choice (b3Model, "303 VCO Model", b3ModelNames(), 0);
+    toggle (b3AccurateGate,  "303 Accurate Gate", false);
+    toggle (b3VcaNoise,      "303 VCA Noise", true);
+    toggle (b3Vibrato,       "303 Vibrato", false);
+    toggle (b3PhaseReset,    "303 Phase Reset", false);
+    toggle (b3SlowSlide,     "303 Slow Slide", false);
+    toggle (b3WeakAccentCap, "303 Weak Accent Cap", false);
+    toggle (b3InfSustain,    "303 Infinite Sustain", false);
+    toggle (b3SoftAccent,    "303 Soft Accent", false);
+
+    // Distortion page
+    toggle (distPageOn, "Distortion On", true);
+    toggle (distOn, "Saturate/Foldback On", false);
+    choice (distMode, "Distortion Mode", distModeNames(), 0);
+    knob (distDrive,  "Distortion Drive", 50.0f);
+    knob (distAmount, "Distortion Amount", 70.0f);
+
     choice (filterMode, "Filter Type", filterModeNames(), 0);
     toggle (oscALock, "Osc A Phase Lock", false);
     toggle (oscBLock, "Osc B Phase Lock", false);

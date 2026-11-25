@@ -66,6 +66,32 @@ int main (int argc, char** argv)
     std::cout << "preset " << preset << " '" << processor->getProgramName (preset) << "'  peak " << peak
               << "  midi out events " << midiOutEvents << "  latency " << processor->getLatencySamples() << std::endl;
 
+    // the same pattern on the 303, through the Saturate distortion
+    {
+        processor->setParameterValue ("engine", 1.0f);
+        processor->setParameterValue ("distOn", 1.0f);
+        processor->setParameterValue ("distDrive", 40.0f);
+        head.ppq = 0.0;
+        processor->setPlayHead (&head);
+        AudioBuffer<float> out303 (2, (int) sr * 4);
+        float peak303 = 0.0f;
+        for (int pos = 0; pos + block <= out303.getNumSamples(); pos += block)
+        {
+            midi.clear();
+            processor->processBlock (buf, midi);
+            for (int c = 0; c < 2; ++c)
+                out303.copyFrom (c, pos, buf, c, 0, block);
+            peak303 = jmax (peak303, buf.getMagnitude (0, block));
+            head.ppq += block / sr * head.bpm / 60.0;
+        }
+        auto f303 = outDir.getChildFile ("render_303.wav");
+        f303.deleteFile();
+        if (auto writer = std::unique_ptr<AudioFormatWriter> (wav.createWriterFor (new FileOutputStream (f303), sr, 2, 24, {}, 0)))
+            writer->writeFromAudioSampleBuffer (out303, 0, out303.getNumSamples());
+        std::cout << "303 + saturate  peak " << peak303 << std::endl;
+        processor->setParameterValue ("distOn", 0.0f);
+    }
+
     // screenshots
     if (argc > 3)
     {
@@ -73,6 +99,7 @@ int main (int argc, char** argv)
         for (int theme = 0; theme < 2; ++theme)
         {
             processor->gui.lightTheme.store (theme == 1);
+            processor->setParameterValue ("engine", 0.0f);
             for (int page = 0; page < 3; ++page)
             {
                 processor->gui.page.store (page);
@@ -88,21 +115,20 @@ int main (int argc, char** argv)
             }
         }
     }
-    // one more: the Sequencer page with the Sequence Browser open (browserShot)
     if (argc > 3)
     {
+        // the Synth / Seq page with the 303 selected
+        processor->setPlayHead (nullptr);
         processor->gui.lightTheme.store (false);
         processor->gui.page.store (0);
-        processor->setSequenceBrowserOpen (true);
+        processor->setParameterValue ("engine", 1.0f);
         std::unique_ptr<AudioProcessorEditor> editor (processor->createEditor());
         editor->setSize (1000, 900);
         auto image = editor->createComponentSnapshot (editor->getLocalBounds(), true, 1.0f);
-        PNGImageFormat png;
-        auto shot = outDir.getChildFile ("page0_browser.png");
+        auto shot = outDir.getChildFile ("page0_303.png");
         shot.deleteFile();
         FileOutputStream stream (shot);
-        png.writeImageToStream (image, stream);
-        processor->setSequenceBrowserOpen (false);
+        PNGImageFormat().writeImageToStream (image, stream);
     }
     return peak > 0.001f ? 0 : 1;
 }

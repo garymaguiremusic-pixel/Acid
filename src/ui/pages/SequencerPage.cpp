@@ -7,7 +7,7 @@ namespace
 {
     const Rectangle<float> kArpPanel    { 8.0f, 0.0f, 380.0f, 266.0f };
     const Rectangle<float> kRandomPanel { 394.0f, 0.0f, 598.0f, 266.0f };
-    constexpr int kStripY = 272, kSeqY = 306;
+    constexpr int kSeqY = 272;
 }
 
 SequencerPage::SequencerPage (AcidAudioProcessor& p)
@@ -16,9 +16,7 @@ SequencerPage::SequencerPage (AcidAudioProcessor& p)
       octaveButtons (*p.apvts.getParameter (ParamIDs::arpOctave), { "1", "2", "3", "4" },
                      "Octave range: each full cycle repeats one octave higher, up to this many octaves"),
       tempoField (*p.apvts.getParameter (ParamIDs::bpm)),
-      seqPanel (p),
-      sequenceBrowser (p.getSequenceLibrary(), p.getSequenceBrowserState(), "*.mid;*.midi;" + SeqPanel::audioWildcard(), nullptr,
-                       { "Sequence Browser", "file", "files", false })
+      seqPanel (p)
 {
     using namespace ParamIDs;
 
@@ -78,42 +76,7 @@ SequencerPage::SequencerPage (AcidAudioProcessor& p)
     setHelp (exportRootBox, "EXPORT ROOT  -  " + helpForParameter (exportRoot));
     addAndMakeVisible (exportRootBox);
 
-    // Sequence Browser ----------------------------------------------------------------
-    addAndMakeVisible (sequenceLcd);
-    setHelp (sequenceLcd, "SEQUENCE  -  the MIDI or audio file the steps were loaded from");
-    favouriteButton.onClick = [this]
-    {
-        const auto file = processor.getCurrentSequenceFile();
-        if (file.existsAsFile())
-            processor.getSequenceLibrary().toggleFavourite (file);
-    };
-    setHelp (favouriteButton, "FAVOURITE  -  add the loaded sequence file to your favourites (or remove it)");
-    backButton.onClick = [this] { sequenceBrowser.step (-1); };
-    nextButton.onClick = [this] { sequenceBrowser.step (+1); };
-    setHelp (backButton, "PREVIOUS  -  the previous MIDI / audio file in the Sequence Browser, loaded into the steps in your Key / Scale");
-    setHelp (nextButton, "NEXT  -  the next MIDI / audio file in the Sequence Browser, loaded into the steps in your Key / Scale");
-    browseButton.setClickingTogglesState (true);
-    browseButton.onClick = [this] { setSequenceBrowserVisible (browseButton.getToggleState()); };
-    setHelp (browseButton, "BROWSE  -  MIDI and audio files: each one you pick loads into the steps, in your Key / Scale");
-    for (Component* c : { (Component*) &favouriteButton, (Component*) &backButton, (Component*) &nextButton, (Component*) &browseButton })
-        addAndMakeVisible (c);
-
-    sequenceBrowser.onLoad = [this] (const File& f) { seqPanel.importFile (f, true); };
-    sequenceBrowser.getCurrentSample = [this] { return processor.getCurrentSequenceFile(); };
-    sequenceBrowser.onClose = [this] { setSequenceBrowserVisible (false); };
-
     addAndMakeVisible (seqPanel);
-    addChildComponent (sequenceBrowser);
-    setSequenceBrowserVisible (processor.isSequenceBrowserOpen());
-}
-
-void SequencerPage::setSequenceBrowserVisible (bool shouldShow)
-{
-    processor.setSequenceBrowserOpen (shouldShow);
-    browseButton.setToggleState (shouldShow, dontSendNotification);
-    sequenceBrowser.setVisible (shouldShow);
-    if (shouldShow)
-        sequenceBrowser.toFront (false);
 }
 
 void SequencerPage::paint (Graphics& g)
@@ -174,14 +137,6 @@ void SequencerPage::resized()
     exportRootBox.setBounds (rx + 314, ry + 230, 110, 24);
     exportChordBox.setBounds (rx + 432, ry + 230, 156, 24);
 
-    // Sequence Browser strip and its browser (over the panels)
-    sequenceLcd.setBounds (8, kStripY, 754, 28);
-    favouriteButton.setBounds (768, kStripY, 28, 28);
-    backButton.setBounds (802, kStripY, 28, 28);
-    nextButton.setBounds (834, kStripY, 28, 28);
-    browseButton.setBounds (868, kStripY, 124, 28);
-    sequenceBrowser.setBounds (8, 0, 984, kSeqY - 4);     // over the panels and the strip (Close shuts it)
-
     seqPanel.setBounds (8, kSeqY, 984, getHeight() - kSeqY);
 }
 
@@ -191,16 +146,6 @@ void SequencerPage::update()
     gateLcd.setContent ("GATE", describeParameter (ParamIDs::arpGate, value (ParamIDs::arpGate)));
     swingLcd.setContent ("SWING", describeParameter (ParamIDs::arpSwing, value (ParamIDs::arpSwing)));
     tempoField.setTempo (processor.getTempo(), processor.isTempoFromHost());
-
-    const auto sequence = processor.getCurrentSequenceFile();
-    const bool haveSequence = sequence != File();
-    sequenceLcd.setContent ("SEQUENCE", haveSequence ? sequence.getFileNameWithoutExtension().toUpperCase()
-                                                     : String ("BROWSE OR DROP A MIDI / AUDIO FILE"));
-    sequenceLcd.setDimmed (! haveSequence);
-    favouriteButton.setEnabled (haveSequence);
-    favouriteButton.setToggleState (haveSequence && processor.getSequenceLibrary().isFavourite (sequence), dontSendNotification);
-    backButton.setEnabled (sequenceBrowser.hasFiles());
-    nextButton.setEnabled (sequenceBrowser.hasFiles());
 
     const int poolNotes = processor.getPatternModel().get().numPoolNotes();
     fileNotesButton.setButtonText (poolNotes > 0 ? "File Notes (" + String (poolNotes) + ")" : String ("File Notes"));

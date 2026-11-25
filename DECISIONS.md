@@ -68,13 +68,12 @@ playable acid sound.
   (the dry path is delayed to match), so the host's delay compensation never changes.
 - **Output**: a gentle safety soft-clip above about -2 dBFS on the master. Factory
   presets peak around -7 to -5 dBFS.
-- **Latency** reported to the host: 15 samples (voice oversampling) + 19 samples (tube
-  oversampling).
+- **Latency** reported to the host: 15 samples (voice oversampling) + 15 (Saturate / Foldback)
+  + 19 (tube oversampling).
 
 ## Sequencer and MIDI
 - The sequencer is **ArpSampler's arpeggiator and step sequencer**, ported with its code
-  (arp engine, pattern model, scales, randomiser, MIDI writer, import, export, sequence
-  browser). Acid's **Glide** (the 303 slide time) is kept, in the Step Sequencer panel. A
+  (arp engine, pattern model, scales, randomiser, MIDI writer, import, export). Acid's **Glide** (the 303 slide time) is kept, in the Step Sequencer panel. A
   Tie to a new pitch glides over it.
 - The synth and the sequencer share one page ("Synth / Seq"), so the window base size is
   1000 x 900.
@@ -93,6 +92,20 @@ playable acid sound.
 - **Randomise Patch** (header): sound parameters only, within musical ranges (mostly the
   diode low-pass, about half the LFOs on, synced echo). The pattern, arp settings, randomiser
   and export settings, volume, tune and the Echo / Tube switches stay. Undo keeps 32 steps.
+- **303 section**: an original 303-style voice built on Acid's diode-ladder voice with the
+  hardware's behaviour (cutoff range about 300 Hz - 2.7 kHz, Env Mod lowers the base cutoff,
+  accented notes use the shortest decay, accent sweep grows with resonance, slow VCA decay
+  while held). It is not a copy of any commercial plugin: no code, tables or data from one
+  are used. The sequencer plays the synth shown (ACID | 303); switching lets the old one's
+  last note ring out. The 303 uses the sequencer's Glide time and the master Tune; Acid's
+  Bass / Treble, LFOs and Layers apply to the Acid synth only. Echo and the Distortion page
+  apply to both.
+- **Distortion page** (was Tube): the new Saturate / Foldback stage (2x oversampled, level
+  matched to the dry signal, runs before the tube) and the three-band tube each have their own
+  ON; the header's Dist button turns the whole page on / off. Its latency (15 samples) is
+  always reported, so switching never changes the plugin's latency.
+- **Octave** steppers (-2..+2) for Osc A, Osc B and the 303 oscillator.
+- The Sequence Browser strip was removed (Import and dropping a file on the grid remain).
 - Acid is monophonic: Start events retrigger the voice, Change events (ties) glide without
   retriggering, and a Stop only ends the note that still owns the voice. In Chord mode the
   newest (top) note plays.

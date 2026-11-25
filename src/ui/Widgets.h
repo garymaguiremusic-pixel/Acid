@@ -1,6 +1,7 @@
 #pragma once
 
 #include <juce_gui_basics/juce_gui_basics.h>
+#include <juce_audio_processors/juce_audio_processors.h>
 
 /** Attaches hover-help text to any component (shown in the header display). */
 inline void setHelp (juce::Component& c, const juce::String& text) { c.getProperties().set ("help", text); }
@@ -86,4 +87,24 @@ class HelpOverlay : public juce::Component
 public:
     void paint (juce::Graphics&) override;
     void mouseDown (const juce::MouseEvent&) override { setVisible (false); }
+};
+
+//==============================================================================
+/** Octave transpose: [<]  OCT +1  [>], bound to a -2..+2 parameter. The arrows step one
+    octave, the mouse wheel too; double-click the readout = 0. */
+class OctaveStepper : public juce::Component
+{
+public:
+    OctaveStepper (juce::RangedAudioParameter&, const juce::String& helpName);
+    void paint (juce::Graphics&) override;
+    void resized() override;
+    void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
+    void mouseDoubleClick (const juce::MouseEvent&) override;
+
+private:
+    void step (int delta);
+    juce::RangedAudioParameter& param;
+    juce::ParameterAttachment attachment;
+    juce::TextButton down { juce::CharPointer_UTF8 ("\xe2\x97\x80") }, up { juce::CharPointer_UTF8 ("\xe2\x96\xb6") };
+    int value = 0;
 };

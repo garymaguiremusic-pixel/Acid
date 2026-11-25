@@ -226,9 +226,9 @@ void HelpOverlay::paint (Graphics& g)
         "STEP SEQUENCER:  Volume (bottom = rest), Velocity, Transpose, Ratchet, Accent and Tie lanes. A Tie to a new pitch",
         "    glides over the GLIDE time. Length 16 / 32, End, Undo / Redo, Clear, Import (MIDI or audio) or drop a file on the grid.",
         "RANDOMISE:  Density, Range, Tie, Ratch, Acc, Vel Lo / Hi, with locks. Scale Lock keeps every step in the Key and Scale.",
-        "SEQUENCE BROWSER:  MIDI and audio files straight into the steps. DRAG MIDI drops the pattern into your DAW.",
+        "ACID | 303:  switch the synth (top of Synth / Seq). The sequencer plays the one you choose. 303 Options: VCO model and more.",
         "LAYERS:  second oscillator, unison, amp envelope, echo (filters inside the loop) and two LFOs.",
-        "TUBE:  three-band tube distortion. Drag band edges for the crossovers and band centres for the gain.",
+        "DISTORTION:  Saturate / Foldback (Drive, Distort) and the three-band tube, each with its own ON. Dist = the whole page.",
         "Knobs move in whole steps (drag or mouse wheel, one notch = 1). Double-click = default. Drag the corner to resize.",
         "",
         "Click anywhere to close."
@@ -241,4 +241,54 @@ void HelpOverlay::paint (Graphics& g)
         g.setColour (String (line).startsWith ("Click") ? Theme::get().accent : Theme::get().text.withAlpha (0.9f));
         g.drawFittedText (line, text.removeFromTop (26.0f).toNearestInt(), Justification::centredLeft, 1, 0.8f);
     }
+}
+
+//==============================================================================
+OctaveStepper::OctaveStepper (RangedAudioParameter& p, const String& helpName)
+    : param (p), attachment (p, [this] (float v) { value = roundToInt (v); repaint(); })
+{
+    down.onClick = [this] { step (-1); };
+    up.onClick = [this] { step (1); };
+    setHelp (down, helpName + "  -  one octave down");
+    setHelp (up, helpName + "  -  one octave up");
+    setHelp (*this, helpName + "  -  octave up / down (arrows or mouse wheel, double-click = 0)");
+    addAndMakeVisible (down);
+    addAndMakeVisible (up);
+    attachment.sendInitialUpdate();
+}
+
+void OctaveStepper::step (int delta)
+{
+    const auto range = param.getNormalisableRange();
+    attachment.setValueAsCompleteGesture (jlimit (range.start, range.end, (float) (value + delta)));
+}
+
+void OctaveStepper::resized()
+{
+    auto b = getLocalBounds();
+    down.setBounds (b.removeFromLeft (24));
+    up.setBounds (b.removeFromRight (24));
+}
+
+void OctaveStepper::paint (Graphics& g)
+{
+    auto b = getLocalBounds().toFloat().reduced (26.0f, 0.0f);
+    AcidLookAndFeel::drawLcd (g, b.reduced (0.0f, 1.0f));
+    g.setFont (AcidLookAndFeel::uiFont (11.0f, true));
+    g.setColour (Colour (0xffc8c8cc));
+    g.drawText ("OCT", b.reduced (6.0f, 0.0f), Justification::centredLeft);
+    g.setColour (value == 0 ? Colour (0xffc8c8cc) : Theme::get().accent);
+    g.drawText ((value > 0 ? "+" : "") + String (value), b.reduced (6.0f, 0.0f), Justification::centredRight);
+}
+
+void OctaveStepper::mouseWheelMove (const MouseEvent&, const MouseWheelDetails& wheel)
+{
+    const float amount = std::abs (wheel.deltaY) > 0.0f ? wheel.deltaY : wheel.deltaX;
+    if (std::abs (amount) > 1.0e-4f)
+        step ((amount > 0.0f) != wheel.isReversed ? 1 : -1);
+}
+
+void OctaveStepper::mouseDoubleClick (const MouseEvent&)
+{
+    attachment.setValueAsCompleteGesture (0.0f);
 }

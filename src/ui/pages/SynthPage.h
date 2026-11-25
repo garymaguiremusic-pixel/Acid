@@ -3,6 +3,7 @@
 #include "PageBase.h"
 #include "SequencerPage.h"
 #include "../arp/Controls.h"
+#include "Page303.h"
 
 class SynthPage : public PageBase
 {
@@ -16,6 +17,7 @@ private:
     // OSC
     juce::TextButton waveButton { "SAW" }, retroButton { "Retro" }, lockButton { "Phase Lock" };
     WaveDisplay waveDisplay;
+    OctaveStepper octaveA;
 
     // FILTER
     AcidKnob cutoffKnob { AcidKnob::Size::Large, "Cutoff" }, resoKnob { AcidKnob::Size::Large, "Resonance" };
@@ -37,6 +39,11 @@ private:
     AcidKnob accSweepKnob { AcidKnob::Size::Small, "Acc Sweep" };
     EnvMeter envMeter;
 
-    // The sequencer (from ArpSampler): Arpeggiator, Randomise, Sequence Browser, Step Sequencer
+    // The 303 section (shown instead of the Acid sections when the tab row's switch is on 303)
+    Page303 page303;
+    std::vector<juce::Component*> acidControls;
+    int shownEngine = -1;
+
+    // The sequencer (from ArpSampler): Arpeggiator, Randomise, Step Sequencer
     SequencerPage sequencer;
 };

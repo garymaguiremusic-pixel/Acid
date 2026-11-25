@@ -6,6 +6,8 @@
 #include "dsp/Oscillator.h"
 #include "dsp/Echo.h"
 #include "dsp/Lfo.h"
+#include "dsp/Voice303.h"
+#include "dsp/Distortion.h"
 
 using namespace acid;
 
@@ -309,4 +311,86 @@ TEST_CASE ("Phase lock: every note starts the wave at the same point", "[dsp][os
         return diff;
     };
     REQUIRE (firstSamples (true) < firstSamples (false) * 0.2);
+}
+
+TEST_CASE ("303: Env Mod pulls the base cutoff down, accents use the shortest decay", "[dsp][303]")
+{
+    Settings303 s;
+    s.envMod = 0.0f;
+    const auto low = Voice303::mapSettings (s);
+    s.envMod = 1.0f;
+    const auto high = Voice303::mapSettings (s);
+    REQUIRE (high.cutoffHz < low.cutoffHz * 0.6f);          // base drops as Env Mod rises
+    REQUIRE (high.envMod > low.envMod);                      // while the sweep grows
+
+    s.decay = 1.0f;
+    const auto longDecay = Voice303::mapSettings (s);
+    REQUIRE (longDecay.decayMs > 1500.0f);
+    REQUIRE (longDecay.accDecayMs <= 200.0f);                // accented notes: always short
+
+    s.octave = -1; s.tuningSemis = 3.0f;
+    REQUIRE (Voice303::mapSettings (s).tuneSemis == -9.0f);
+
+    s.resonance = 1.0f; s.weakAccentCap = false;
+    const float sweepHighRes = Voice303::mapSettings (s).accSweep;
+    s.resonance = 0.0f;
+    REQUIRE (sweepHighRes > Voice303::mapSettings (s).accSweep);   // more build-up at high resonance
+}
+
+TEST_CASE ("303 voice output is finite and audible with every option", "[dsp][303]")
+{
+    Voice303 v;
+    v.prepare (48000.0, 512);
+    Settings303 s;
+    s.model = Settings303::Drift; s.vibrato = true; s.accurateGate = true; s.vcaNoise = true;
+    s.phaseReset = true; s.slowSlide = true; s.weakAccentCap = true; s.infSustain = true;
+    s.resonance = 1.0f; s.accent = 1.0f; s.wave = 1;
+    v.setSettings (s);
+    std::vector<float> l (1000), r (1000);
+    float peak = 0.0f;
+    for (int b = 0; b < 60; ++b)
+    {
+        if (b % 6 == 0) v.noteOn (36 + b % 12, b % 12 == 0, b % 12 == 6);
+        if (b % 6 == 3) v.noteOff();
+        v.render (l.data(), r.data(), 1000);
+        for (float x : l) { REQUIRE (std::isfinite (x)); peak = std::max (peak, std::abs (x)); }
+    }
+    REQUIRE (peak > 0.02f);
+    REQUIRE (peak < 4.0f);
+}
+
+TEST_CASE ("Distortion: off / dry is the input delayed by the latency, modes are bounded", "[dsp][distortion]")
+{
+    Distortion d;
+    DistortionSettings s;
+    s.on = false;
+    d.setSettings (s);
+    d.prepare (48000.0);
+    std::vector<float> l (200, 0.0f), r (200, 0.0f);
+    l[10] = r[10] = 0.5f;
+    d.process (l.data(), r.data(), 200);
+    REQUIRE (std::abs (l[(size_t) (10 + Distortion::getLatencySamples())] - 0.5f) < 1.0e-6f);
+
+    for (int mode : { 0, 1 })
+        for (float drive : { 0.0f, 0.5f, 1.0f })
+            for (float x : { -2.0f, -0.5f, 0.0f, 0.3f, 1.0f, 3.0f })
+            {
+                const float y = Distortion::shape (x, mode, drive);
+                REQUIRE (std::isfinite (y));
+                REQUIRE (std::abs (y) <= 1.5f);   // nearly clean at no drive, so a hot input passes through
+            }
+    REQUIRE (Distortion::shape (0.0f, 0, 0.7f) == 0.0f);
+
+    // on, saturating: output stays bounded
+    Distortion on;
+    s.on = true; s.mode = 0; s.drive = 1.0f; s.distort = 1.0f;
+    on.setSettings (s);
+    on.prepare (48000.0);
+    FastRandom rng (5);
+    for (int b = 0; b < 20; ++b)
+    {
+        for (size_t i = 0; i < l.size(); ++i) { l[i] = rng.nextBipolar(); r[i] = rng.nextBipolar(); }
+        on.process (l.data(), r.data(), 200);
+        for (float x : l) REQUIRE (std::abs (x) < 2.0f);
+    }
 }

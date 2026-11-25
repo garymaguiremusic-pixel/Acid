@@ -5,6 +5,8 @@
 #include <optional>
 #include "Parameters.h"
 #include "dsp/Voice.h"
+#include "dsp/Voice303.h"
+#include "dsp/Distortion.h"
 #include "dsp/Lfo.h"
 #include "dsp/ToneStack.h"
 #include "dsp/MultibandTube.h"
@@ -15,8 +17,6 @@
 #include "arp/MidiNoteWriter.h"
 #include "arp/export/MidiRenderer.h"
 #include "arp/import/PatternImport.h"
-#include "arp/browser/SampleLibrary.h"
-#include "ui/arp/BrowserPanel.h"
 #include "presets/PresetManager.h"
 
 //==============================================================================
@@ -78,10 +78,6 @@ public:
     as::import::ImportOptions makeImportOptions() const;
     int applyImport (const std::vector<as::import::ImportedNote>&, bool lockToScale = false);
 
-    SampleLibrary& getSequenceLibrary() noexcept        { return *sequenceLibrary; }
-    BrowserPanel::State& getSequenceBrowserState() noexcept { return sequenceBrowserState; }
-    bool isSequenceBrowserOpen() const noexcept         { return sequenceBrowserOpen; }
-    void setSequenceBrowserOpen (bool open) noexcept    { sequenceBrowserOpen = open; }
     juce::File getCurrentSequenceFile() const           { return currentSequence; }
     void setCurrentSequenceFile (const juce::File& f)   { currentSequence = f; }
 
@@ -148,6 +144,8 @@ private:
     void renderVoice (float* left, float* right, int from, int to) noexcept;
     void computeModulation (int sampleInBlock, int numSamples) noexcept;
     void applyArpEvent (const as::arp::NoteEvent&) noexcept;
+    void playNoteOn (int note, bool accent, bool legato, float level = 1.0f, float filterVelocity = 1.0f, bool glide = true) noexcept;
+    void playNoteOff() noexcept;
     void handleDirectMidi (const juce::MidiMessage&) noexcept;
     void passThrough (const juce::MidiMessage&, int time) noexcept;
     void publishHeldNotes() noexcept;
@@ -170,6 +168,9 @@ private:
 
     // DSP
     acid::Voice voice;
+    acid::Voice303 voice303;
+    acid::Distortion distortion;
+    int activeEngine = 0;          // 0 = Acid, 1 = 303
     acid::Lfo lfos[2];
     acid::ToneStack tone;
     acid::MultibandTube tube;
@@ -178,6 +179,7 @@ private:
 
     static constexpr int kChunk = 512;
     float lfoBuf[2][kChunk] {};
+    float scratchL[kChunk] {}, scratchR[kChunk] {};
     float modCutoff[kChunk] {}, modPitch[kChunk] {}, modWave[kChunk] {}, modReso[kChunk] {}, modVolume[kChunk] {};
     acid::VoiceMod voiceMod;
 
@@ -208,7 +210,11 @@ private:
     struct ParamPointers
     {
         std::atomic<float> *tune, *volume, *echoOn, *tubeOn, *wave, *retro, *cutoffLow, *cutoff, *resonance,
-            *transistor, *filterVelLink, *filterVelAmount, *filterMode, *oscALock, *oscBLock, *bass, *treble, *drive, *envMod, *decay, *accent, *envAttack, *accDecay, *accSweep, *slideTime,
+            *transistor, *filterVelLink, *filterVelAmount, *filterMode, *oscALock, *oscBLock,
+            *engine, *oscAOctave, *oscBOctave, *b3Wave, *b3Tuning, *b3Octave, *b3Cutoff, *b3Resonance, *b3EnvMod,
+            *b3Decay, *b3Accent, *b3Volume, *b3Model, *b3AccurateGate, *b3VcaNoise, *b3Vibrato, *b3PhaseReset,
+            *b3SlowSlide, *b3WeakAccentCap, *b3InfSustain, *b3SoftAccent,
+            *distPageOn, *distOn, *distMode, *distDrive, *distAmount, *bass, *treble, *drive, *envMod, *decay, *accent, *envAttack, *accDecay, *accSweep, *slideTime,
             *arpOn, *arpMode, *arpRate, *arpRateType, *arpGate, *arpSwing, *arpOctave, *velMode, *bpm, *autoPlay,
             *midiOut, *seqLength, *seqEnd, *scaleKey, *scale, *scaleLock,
             *oscBLevel, *oscBTune, *oscBDetune, *unisonVoices, *unisonSpread, *unisonFree,
@@ -222,9 +228,6 @@ private:
 
     // Sequencer extras (message thread)
     ImportChoices importChoices;
-    juce::SharedResourcePointer<SequenceLibrary> sequenceLibrary;
-    BrowserPanel::State sequenceBrowserState;
-    bool sequenceBrowserOpen = false;
     juce::File currentSequence;
     juce::uint32 randomSeed = 1;
     std::atomic<bool> restoringState { false };

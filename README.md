@@ -35,39 +35,62 @@ your DAW (Logic Pro checks the Audio Unit by itself).
 ## Pages
 
 ### Synth / Seq
-The synth and its sequencer share one page. The sequencer is the **ArpSampler** arpeggiator and
+The synth and its sequencer share one page. **ACID | 303** (next to the tabs) switches the top
+section between the Acid synth and the 303; the sequencer plays whichever one you choose. The sequencer is the **ArpSampler** arpeggiator and
 step sequencer. Acid's **Glide** stays: it's in the Step Sequencer panel.
 
 | Section | Controls |
 |---|---|
-| **Osc** | Wave (Saw / Square, the square shaped from the saw 303-style), wave display, **Retro** (slow pitch drift, per-note variation, softer top end), **Phase Lock** (every note starts the wave at the same point) |
+| **Osc** | Wave (Saw / Square, the square shaped from the saw 303-style), wave display, **Octave** (◀ ▶, ±2), **Retro** (slow pitch drift, per-note variation, softer top end), **Phase Lock** (every note starts the wave at the same point) |
 | **Filter** | **Cutoff** with **LP / BP / HP** beside it (low-pass, band-pass, high-pass, all from the same ladder, resonance in every type), **Resonance**, **Cutoff Low** (the floor the envelope falls back to), Drive, Bass, Treble, **Transistor** (diode ladder by default, or a transistor ladder). **Velocity**: **Vel Link** ties the cutoff to velocity, **Vel Amt** sets how far (see below) |
 | **Envelope** | Env Mod, Decay, Accent, Env Attack, Acc Decay, **Acc Sweep** (consecutive accents build the cutoff up), live ENV / ACC meter |
 | **Arpeggiator** | Arp On, Mode (Up, Down, Up/Down, Up/Down2, Down/Up, Down/Up2, Random, Ordered, **Step**, Chord), Octave 1-4, Time (1/2-1/32, Straight / Triplet / Dotted), Gate 1-200 %, Swing -100 to +100 %, Velocity mode (Key, Hold, Step, Step+Key, Step+Hold), **Auto Play**, **MIDI Out**, Tempo (host, or the internal BPM) |
 | **Randomise** | Randomise / Undo, Density, Range, Glide, Tie, Ratch, Acc, Vel Lo, Vel Hi, Lock Pitch / Vel / Rests / Glide / Ties / Ratch / Acc, **Scale Lock** with Key and 16 scales, **File Notes**, **Drag MIDI** with length (1-8 bars), root and chord |
-| **Sequence** strip | The MIDI or audio file the steps came from, favourite star, previous / next file, **Browse** (the Sequence Browser: folders, favourites, tags and search; each file you pick loads into the steps in your Key / Scale) |
 | **Step Sequencer** | Length 16 / 32, End, **Glide**, Undo / Redo, Clear, Import (a MIDI file, or the notes of an audio file; or drop a file on the grid). Lanes: **Volume** (bottom = rest), **Velocity**, **Transpose**, **Ratchet** (1-4 hits), **Accent**, **Glide** (a button per step, like the first Acid sequencer's slide row), **Tie** |
+
+### 303
+![303](docs/screenshot-303.png)
+
+A 303-style synth in one row, like the hardware's front panel: **Waveform** (Saw / Square),
+**Octave**, **Tuning**, **Cutoff**, **Resonance**, **Env Mod**, **Decay**, **Accent**, **Volume**.
+It behaves like the original unit:
+- Env Mod also pulls the base cutoff down as it rises.
+- Accented notes always use the shortest decay.
+- Runs of accents push the filter higher, more so at high resonance.
+- The VCA decays slowly while a note is held.
+
+**Options** (a menu) holds:
+- VCO Model: Classic, Stable or Drift
+- Accurate Gate, VCA Noise, Vibrato and Phase Reset
+- Aged or modified parts: Slow Slide, Weak Accent Cap, Infinite Sustain and Soft Accent
+
+The design and sound are our own.
 
 ### Layers
 ![Layers page](docs/screenshot-layers.png)
 
-Osc B (level, tune, detune, **Phase Lock**) · Unison (1-8 voices, spread, free / reset phase) ·
+Osc B (level, tune, detune, **Octave**, **Phase Lock**) · Unison (1-8 voices, spread, free / reset phase) ·
 Amp envelope (attack, decay or hold, release) · **Echo** (sync, time, mix, feedback,
 low cut and high cut inside the loop, ping-pong width) · **2 LFOs** (rate free or
 synced, depth +-, phase, 7 shapes, sync, mirror, retrigger Free / Note / Bar,
 destination Cutoff / Pitch / Wave / Reso / Volume).
 
-### Tube
-![Tube page](docs/screenshot-tube.png)
+### Distortion
+![Distortion page](docs/screenshot-tube.png)
 
-Three-band tube distortion: Linkwitz-Riley crossovers, with clean signal below the low
+**Distortion** (top) has its own **ON**, **Mode** (Saturate: warm tanh clipping; Foldback:
+the wave folds back on itself), **Drive** and **Distort** (how much you hear). It's
+oversampled, and its level follows the dry signal, so Drive adds grit rather than volume.
+It runs before the tube.
+
+**Tube** (below) has its own **ON** and is a three-band tube distortion: Linkwitz-Riley crossovers, with clean signal below the low
 edge and above the high edge. Each band has a 4x oversampled tube with Drive, Gain and
 Solo, and a tube that glows with the band's level. Global Resonator, Character, Input,
 Output and Mix. **Generate Distortion** randomises the settings, with Undo / Init / Redo.
 In the band graph, drag the edges for the frequencies and the centres for the gains.
 
 ### Header
-Save, Clear (sound back to default, the pattern stays), **RANDOM** (a new patch: oscillators,
+Save, Clear (sound back to default, the pattern stays), Echo / **Dist** (the whole Distortion page) on-off, **RANDOM** (a new patch: oscillators,
 filter, envelope, glide time, layers, echo, LFOs and tube, within musical ranges; the pattern,
 arp settings, volume and Echo / Tube switches stay) with **UNDO**, the preset display (‹ ›, click it
 to browse the 20 factory presets and your user presets), Echo / Tube on-off, Dark / Light

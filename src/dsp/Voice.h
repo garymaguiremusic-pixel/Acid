@@ -79,6 +79,8 @@ public:
                  bool glide = true);
     void noteOff();
     bool isGateOn() const noexcept { return gate; }
+    /** True while the voice still makes sound (gate on, or the release still running). */
+    bool isSounding() const noexcept { return ampEnv.isActive(); }
 
     /** Renders (adds nothing, overwrites) numSamples into left / right. Mod pointers are
         read from index modOffset onwards. */

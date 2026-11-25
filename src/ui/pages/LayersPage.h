@@ -26,6 +26,7 @@ private:
     void layoutLfo (int index, int x0);
 
     juce::TextButton oscBLockButton { "Phase Lock" };
+    OctaveStepper octaveB;
     AcidKnob oscBLevel { AcidKnob::Size::Small, "Level" }, oscBTune { AcidKnob::Size::Small, "Tune" }, oscBDetune { AcidKnob::Size::Small, "Detune" };
     juce::TextButton unisonFree { "Free" };
     AcidKnob voices { AcidKnob::Size::Small, "Voices" }, spread { AcidKnob::Size::Small, "Spread" };

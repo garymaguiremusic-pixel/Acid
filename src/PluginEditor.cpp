@@ -10,7 +10,7 @@ namespace
 {
     constexpr int kW = AcidPanel::kBaseWidth, kH = AcidPanel::kBaseHeight;
     constexpr int kHeaderH = 58, kTabsY = 64, kTabsH = 26, kContentY = 96, kBottomBarY = 870;
-    const char* kPageNames[] = { "Synth / Seq", "Layers", "Tube" };
+    const char* kPageNames[] = { "Synth / Seq", "Layers", "Distortion" };
     constexpr int kNumPages = 3;
 }
 
@@ -42,7 +42,7 @@ AcidPanel::AcidPanel (AcidAudioProcessor& p)
         addAndMakeVisible (*b);
     addAndMakeVisible (display);
 
-    const std::pair<TextButton*, const char*> bypassButtons[] = { { &echoButton, ParamIDs::echoOn }, { &tubeButton, ParamIDs::tubeOn } };
+    const std::pair<TextButton*, const char*> bypassButtons[] = { { &echoButton, ParamIDs::echoOn }, { &tubeButton, ParamIDs::distPageOn } };
     for (auto [button, id] : bypassButtons)
     {
         button->setClickingTogglesState (true);
@@ -82,6 +82,11 @@ AcidPanel::AcidPanel (AcidAudioProcessor& p)
         setHelp (tab, String (kPageNames[i]).toUpperCase() + " PAGE");
         addAndMakeVisible (tab);
     }
+    engineButtons = std::make_unique<SegmentedButtons> (*processor.apvts.getParameter (ParamIDs::engine), engineNames(), String());
+    setHelp (*engineButtons, "ACID / 303  -  " + helpForParameter (ParamIDs::engine));
+    addAndMakeVisible (*engineButtons);
+    engineButtons->setBounds (392, kTabsY, 120, kTabsH);
+
     addChildComponent (synthPage);
     addChildComponent (layersPage);
     addChildComponent (tubePage);
@@ -112,6 +117,8 @@ void AcidPanel::showPage (int page)
     currentPage = page;
     processor.gui.page.store (page);
     synthPage.setVisible (page == 0);
+    if (engineButtons != nullptr)
+        engineButtons->setVisible (page == 0);
     layersPage.setVisible (page == 1);
     tubePage.setVisible (page == 2);
     for (int i = 0; i < kNumPages; ++i)
@@ -150,6 +157,8 @@ void AcidPanel::resized()
 
     for (int i = 0; i < kNumPages; ++i)
         tabs[(size_t) i].setBounds (8 + i * 124, kTabsY, 120, kTabsH);
+    if (engineButtons != nullptr)
+        engineButtons->setBounds (392, kTabsY, 120, kTabsH);
 
     const Rectangle<int> content (0, kContentY, kW, kBottomBarY - kContentY - 4);
     synthPage.setBounds (content);

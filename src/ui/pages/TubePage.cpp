@@ -5,9 +5,23 @@ using namespace acid;
 
 namespace { const char* kBandTitles[] = { "Low", "Mid", "High" }; }
 
-TubePage::TubePage (AcidAudioProcessor& p) : PageBase (p), graph (p)
+TubePage::TubePage (AcidAudioProcessor& p)
+    : PageBase (p), graph (p),
+      distModeButtons (*p.apvts.getParameter (ParamIDs::distMode), distModeNames(), {})
 {
     using namespace ParamIDs;
+
+    // Saturate / Foldback
+    attach (distOnButton, distOn);
+    setHelp (distOnButton, "ON  -  " + helpForParameter (distOn));
+    addAndMakeVisible (distModeButtons);
+    setHelp (distModeButtons, "MODE  -  " + helpForParameter (distMode));
+    attach (distDrive, ParamIDs::distDrive);
+    attach (distAmount, ParamIDs::distAmount);
+
+    // the three-band tube
+    attach (tubeOnButton, tubeOn);
+    setHelp (tubeOnButton, "ON  -  " + helpForParameter (tubeOn));
     generateButton.onClick = [this] { processor.generateTube(); };
     setHelp (generateButton, "GENERATE DISTORTION  -  random tube settings in musical ranges (Undo takes it back)");
     undoButton.onClick = [this] { processor.undoTube(); };
@@ -41,31 +55,42 @@ TubePage::TubePage (AcidAudioProcessor& p) : PageBase (p), graph (p)
 
 void TubePage::paint (Graphics& g)
 {
-    AcidLookAndFeel::drawPanel (g, { 8.0f, 0.0f, 984.0f, 120.0f }, "Tube Distortion  -  three bands");
+    AcidLookAndFeel::drawPanel (g, { 8.0f, 0.0f, 984.0f, 150.0f }, "Distortion");
+    AcidLookAndFeel::drawSmallLabel (g, "Mode", { 300.0f, 40.0f, 150.0f, 12.0f }, Justification::centredLeft);
+    AcidLookAndFeel::drawPanel (g, { 8.0f, 156.0f, 984.0f, 120.0f }, "Tube  -  three bands");
     const float edges[4] = { value (ParamIDs::tubeEdgeLow), value (ParamIDs::tubeXover1),
                              value (ParamIDs::tubeXover2), value (ParamIDs::tubeEdgeHigh) };
     for (int b = 0; b < 3; ++b)
     {
         const float x0 = 8.0f + 330.0f * (float) b;
-        AcidLookAndFeel::drawPanel (g, { x0, 126.0f, 324.0f, 230.0f }, kBandTitles[b]);
+        AcidLookAndFeel::drawPanel (g, { x0, 282.0f, 324.0f, 230.0f }, kBandTitles[b]);
         g.setFont (AcidLookAndFeel::uiFont (11.0f, true));
         g.setColour (Theme::get().labelText);
-        g.drawText (formatHz (edges[b]) + "  -  " + formatHz (edges[b + 1]), Rectangle<float> (x0 + 12.0f, 148.0f, 180.0f, 14.0f), Justification::centredLeft);
+        g.drawText (formatHz (edges[b]) + "  -  " + formatHz (edges[b + 1]), Rectangle<float> (x0 + 12.0f, 304.0f, 180.0f, 14.0f), Justification::centredLeft);
     }
-    AcidLookAndFeel::drawPanel (g, { 8.0f, 362.0f, 984.0f, (float) getHeight() - 362.0f }, "Bands");
+    AcidLookAndFeel::drawPanel (g, { 8.0f, 518.0f, 984.0f, (float) getHeight() - 518.0f }, "Bands");
 }
 
 void TubePage::resized()
 {
-    generateButton.setBounds (24, 30, 232, 32);
-    undoButton.setBounds (24, 72, 74, 24);
-    initButton.setBounds (103, 72, 74, 24);
-    redoButton.setBounds (182, 72, 74, 24);
+    // Saturate / Foldback
+    distOnButton.setBounds (24, 30, 90, 28);
+    distModeButtons.setBounds (300, 56, 200, 28);
+    distDrive.setBounds (560, 18, 120, 126);
+    distAmount.setBounds (700, 18, 120, 126);
+
+    // the three-band tube
+    const int ty = 156;
+    tubeOnButton.setBounds (24, ty + 30, 64, 32);
+    generateButton.setBounds (96, ty + 30, 196, 32);
+    undoButton.setBounds (96, ty + 72, 62, 24);
+    initButton.setBounds (163, ty + 72, 62, 24);
+    redoButton.setBounds (230, ty + 72, 62, 24);
 
     int x = 330;
     for (auto* k : { &resonator, &character, &input, &output, &mix })
     {
-        k->setBounds (x, 24, 90, 88);
+        k->setBounds (x, ty + 24, 90, 88);
         x += 128;
     }
 
@@ -73,14 +98,14 @@ void TubePage::resized()
     {
         const int x0 = 8 + 330 * b;
         auto& c = bands[b];
-        c.drive.setBounds (x0 + 14, 170, 112, 112);
-        c.driveLcd.setBounds (x0 + 14, 290, 112, 22);
-        c.gain.setBounds (x0 + 132, 188, 66, 78);
-        c.solo.setBounds (x0 + 14, 320, 184, 24);
-        c.tube.setBounds (x0 + 206, 148, 108, 198);
+        c.drive.setBounds (x0 + 14, 326, 112, 112);
+        c.driveLcd.setBounds (x0 + 14, 446, 112, 22);
+        c.gain.setBounds (x0 + 132, 344, 66, 78);
+        c.solo.setBounds (x0 + 14, 476, 184, 24);
+        c.tube.setBounds (x0 + 206, 304, 108, 198);
     }
 
-    graph.setBounds (16, 384, 968, getHeight() - 392);
+    graph.setBounds (16, 540, 968, getHeight() - 548);
 }
 
 void TubePage::update()
@@ -88,7 +113,7 @@ void TubePage::update()
     for (int b = 0; b < 3; ++b)
     {
         const float drive = value (ParamIDs::band (b, "Drive"));
-        const bool active = value (ParamIDs::tubeOn) > 0.5f;
+        const bool active = value (ParamIDs::tubeOn) > 0.5f && value (ParamIDs::distPageOn) > 0.5f;
         bands[b].tube.setGlow (active ? drive / 100.0f : 0.0f, active ? processor.gui.bandLevel[b].load() : 0.0f);
         bands[b].driveLcd.setContent ("DRIVE", formatNumber (drive));
     }
@@ -102,7 +127,7 @@ void TubePage::update()
     {
         std::copy (std::begin (state), std::end (state), std::begin (lastGraphState));
         graph.repaint();
-        repaint (0, 140, getWidth(), 30);
+        repaint (0, 296, getWidth(), 30);
     }
 
     undoButton.setEnabled (processor.canUndoTube());

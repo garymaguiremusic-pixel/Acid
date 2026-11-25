@@ -3,13 +3,15 @@
 using namespace juce;
 using namespace acid;
 
-LayersPage::LayersPage (AcidAudioProcessor& p) : PageBase (p)
+LayersPage::LayersPage (AcidAudioProcessor& p)
+    : PageBase (p), octaveB (*p.apvts.getParameter (ParamIDs::oscBOctave), "OSC B OCTAVE")
 {
     using namespace ParamIDs;
     attach (oscBLevel, ParamIDs::oscBLevel);
     attach (oscBTune, ParamIDs::oscBTune);
     attach (oscBDetune, ParamIDs::oscBDetune);
     attach (oscBLockButton, ParamIDs::oscBLock);
+    addAndMakeVisible (octaveB);
     attach (unisonFree, ParamIDs::unisonFree);
     attach (voices, unisonVoices);
     attach (spread, unisonSpread);
@@ -128,7 +130,8 @@ void LayersPage::resized()
     oscBLevel.setBounds (22, 24, 72, 84);
     oscBTune.setBounds (96, 24, 72, 84);
     oscBDetune.setBounds (170, 24, 72, 84);
-    oscBLockButton.setBounds (22, 116, 220, 24);
+    octaveB.setBounds (22, 116, 112, 24);
+    oscBLockButton.setBounds (140, 116, 102, 24);
 
     unisonFree.setBounds (280, 58, 86, 24);
     voices.setBounds (382, 32, 72, 84);

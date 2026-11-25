@@ -39,7 +39,9 @@ add_library(AcidEngine STATIC
     src/dsp/Lfo.cpp
     src/dsp/ToneStack.cpp
     src/dsp/MultibandTube.cpp
-    src/dsp/Echo.cpp)
+    src/dsp/Echo.cpp
+    src/dsp/Voice303.cpp
+    src/dsp/Distortion.cpp)
 target_include_directories(AcidEngine PUBLIC src)
 set_target_properties(AcidEngine PROPERTIES POSITION_INDEPENDENT_CODE ON)
 if(MSVC)
@@ -99,20 +101,18 @@ if(ACID_BUILD_PLUGIN)
         src/arp/import/AudioToNotes.cpp
         src/arp/import/PitchDetector.cpp
         src/arp/export/MidiRenderer.cpp
-        src/arp/browser/SampleLibrary.cpp
-        src/arp/browser/FolderScanner.cpp
         src/presets/PresetManager.cpp
         src/presets/FactoryPresets.cpp
         src/ui/LookAndFeel.cpp
         src/ui/Knob.cpp
         src/ui/Widgets.cpp
         src/ui/arp/ArpStepGrid.cpp
-        src/ui/arp/BrowserPanel.cpp
         src/ui/arp/DragMidiHandle.cpp
         src/ui/arp/Controls.cpp
         src/ui/arp/VirusWidgets.cpp
         src/ui/pages/SequencerPage.cpp
         src/ui/pages/SeqPanel.cpp
+        src/ui/pages/Page303.cpp
         src/ui/BandGraph.cpp
         src/ui/TubeView.cpp
         src/ui/pages/SynthPage.cpp

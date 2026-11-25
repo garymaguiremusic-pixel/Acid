@@ -32,7 +32,16 @@ AcidAudioProcessor::AcidAudioProcessor()
     P.cutoffLow = get (cutoffLow);   P.cutoff = get (cutoff);        P.resonance = get (resonance);
     P.transistor = get (transistor); P.bass = get (bass);
     P.filterVelLink = get (filterVelLink); P.filterVelAmount = get (filterVelAmount);
-    P.filterMode = get (filterMode); P.oscALock = get (oscALock); P.oscBLock = get (oscBLock);            P.treble = get (treble);
+    P.filterMode = get (filterMode); P.oscALock = get (oscALock); P.oscBLock = get (oscBLock);
+    P.engine = get (engine); P.oscAOctave = get (oscAOctave); P.oscBOctave = get (oscBOctave);
+    P.b3Wave = get (b3Wave); P.b3Tuning = get (b3Tuning); P.b3Octave = get (b3Octave); P.b3Cutoff = get (b3Cutoff);
+    P.b3Resonance = get (b3Resonance); P.b3EnvMod = get (b3EnvMod); P.b3Decay = get (b3Decay); P.b3Accent = get (b3Accent);
+    P.b3Volume = get (b3Volume); P.b3Model = get (b3Model); P.b3AccurateGate = get (b3AccurateGate);
+    P.b3VcaNoise = get (b3VcaNoise); P.b3Vibrato = get (b3Vibrato); P.b3PhaseReset = get (b3PhaseReset);
+    P.b3SlowSlide = get (b3SlowSlide); P.b3WeakAccentCap = get (b3WeakAccentCap); P.b3InfSustain = get (b3InfSustain);
+    P.b3SoftAccent = get (b3SoftAccent);
+    P.distPageOn = get (distPageOn); P.distOn = get (distOn); P.distMode = get (distMode);
+    P.distDrive = get (distDrive); P.distAmount = get (distAmount);            P.treble = get (treble);
     P.drive = get (drive);           P.envMod = get (envMod);        P.decay = get (decay);
     P.accent = get (accent);         P.envAttack = get (envAttack);
     P.accDecay = get (accDecay);     P.accSweep = get (accSweep);    P.slideTime = get (slideTime);
@@ -92,6 +101,8 @@ void AcidAudioProcessor::prepareToPlay (double sr, int)
 {
     sampleRate = sr;
     voice.prepare (sr);
+    voice303.prepare (sr, kChunk);
+    distortion.prepare (sr);
     for (auto& l : lfos) l.prepare (sr);
     tone.prepare (sr);
     tube.prepare (sr);
@@ -100,13 +111,15 @@ void AcidAudioProcessor::prepareToPlay (double sr, int)
     masterGain.reset (sr, 0.03);
     masterGain.setCurrentAndTargetValue (Decibels::decibelsToGain (P.volume->load()));
     updateSettings();
-    setLatencySamples (voice.getLatencySamples() + MultibandTube::getLatencySamples());
+    setLatencySamples (voice.getLatencySamples() + Distortion::getLatencySamples() + MultibandTube::getLatencySamples());
     reset();
 }
 
 void AcidAudioProcessor::reset()
 {
     voice.reset();
+    voice303.reset();
+    distortion.reset();
     tone.reset();
     tube.reset();
     echo.reset();
@@ -428,7 +441,7 @@ as::arp::TransportInfo AcidAudioProcessor::readTransport() noexcept
 void AcidAudioProcessor::updateSettings() noexcept
 {
     VoiceSettings v;
-    v.tuneSemis       = P.tune->load();
+    v.tuneSemis       = P.tune->load() + 12.0f * P.oscAOctave->load();
     v.waveMorph       = P.wave->load() > 0.5f ? 1.0f : 0.0f;
     v.retro           = P.retro->load() > 0.5f;
     v.cutoffHz        = cutoffToHz (P.cutoff->load());
@@ -448,7 +461,7 @@ void AcidAudioProcessor::updateSettings() noexcept
     v.velLink         = P.filterVelLink->load() > 0.5f;
     v.velAmount       = norm100 (P.filterVelAmount->load());
     v.oscBLevel       = norm100 (P.oscBLevel->load());
-    v.oscBTuneSemis   = P.oscBTune->load();
+    v.oscBTuneSemis   = P.oscBTune->load() + 12.0f * P.oscBOctave->load();
     v.oscBDetuneCents = P.oscBDetune->load();
     v.unisonVoices    = roundToInt (P.unisonVoices->load());
     v.unisonSpread    = norm100 (P.unisonSpread->load());
@@ -459,6 +472,36 @@ void AcidAudioProcessor::updateSettings() noexcept
     v.ampReleaseMs    = ampReleaseToMs (P.ampRelease->load());
     v.slideMs         = P.slideTime->load();
     voice.setSettings (v);
+
+    Settings303 b;
+    b.wave          = roundToInt (P.b3Wave->load());
+    b.tuningSemis   = P.b3Tuning->load() + P.tune->load();
+    b.octave        = roundToInt (P.b3Octave->load());
+    b.cutoff        = norm100 (P.b3Cutoff->load());
+    b.resonance     = norm100 (P.b3Resonance->load());
+    b.envMod        = norm100 (P.b3EnvMod->load());
+    b.decay         = norm100 (P.b3Decay->load());
+    b.accent        = norm100 (P.b3Accent->load());
+    b.volume        = norm100 (P.b3Volume->load());
+    b.slideMs       = P.slideTime->load();
+    b.model         = roundToInt (P.b3Model->load());
+    b.accurateGate  = P.b3AccurateGate->load() > 0.5f;
+    b.vcaNoise      = P.b3VcaNoise->load() > 0.5f;
+    b.vibrato       = P.b3Vibrato->load() > 0.5f;
+    b.phaseReset    = P.b3PhaseReset->load() > 0.5f;
+    b.slowSlide     = P.b3SlowSlide->load() > 0.5f;
+    b.weakAccentCap = P.b3WeakAccentCap->load() > 0.5f;
+    b.infSustain    = P.b3InfSustain->load() > 0.5f;
+    b.softAccent    = P.b3SoftAccent->load() > 0.5f;
+    voice303.setSettings (b);
+
+    const bool distPage = P.distPageOn->load() > 0.5f;
+    DistortionSettings d;
+    d.on      = distPage && P.distOn->load() > 0.5f;
+    d.mode    = roundToInt (P.distMode->load());
+    d.drive   = norm100 (P.distDrive->load());
+    d.distort = norm100 (P.distAmount->load());
+    distortion.setSettings (d);
 
     tone.setGains (P.bass->load(), P.treble->load());
 
@@ -475,7 +518,7 @@ void AcidAudioProcessor::updateSettings() noexcept
     t.inputDb   = P.tubeInput->load();
     t.outputDb  = P.tubeOutput->load();
     t.mix       = norm100 (P.tubeMix->load());
-    t.active    = P.tubeOn->load() > 0.5f;
+    t.active    = P.tubeOn->load() > 0.5f && P.distPageOn->load() > 0.5f;
     tube.setSettings (t);
 
     EchoSettings e;
@@ -569,12 +612,49 @@ void AcidAudioProcessor::computeModulation (int sampleInBlock, int n) noexcept
 
 void AcidAudioProcessor::renderVoice (float* left, float* right, int from, int to) noexcept
 {
+    // the selected synth always renders; the other one only while its last note rings out
     for (int pos = from; pos < to; pos += kChunk)
     {
         const int n = jmin (kChunk, to - pos);
-        computeModulation (pos, n);
-        voice.render (left + pos, right + pos, n, voiceMod, 0);
+        const bool acid = activeEngine == 0 || voice.isSounding();
+        const bool b303 = activeEngine == 1 || voice303.isSounding();
+
+        if (acid)
+        {
+            computeModulation (pos, n);
+            voice.render (left + pos, right + pos, n, voiceMod, 0);
+            tone.process (left + pos, right + pos, n);        // Acid's Bass / Treble
+        }
+        else
+        {
+            std::fill (left + pos, left + pos + n, 0.0f);
+            std::fill (right + pos, right + pos + n, 0.0f);
+        }
+
+        if (b303)
+        {
+            voice303.render (scratchL, scratchR, n);
+            for (int i = 0; i < n; ++i)
+            {
+                left[pos + i] += scratchL[i];
+                right[pos + i] += scratchR[i];
+            }
+        }
     }
+}
+
+void AcidAudioProcessor::playNoteOn (int note, bool accent, bool legato, float level, float filterVelocity, bool glide) noexcept
+{
+    if (activeEngine == 1)
+        voice303.noteOn (note, accent, legato, level, glide);
+    else
+        voice.noteOn (note, accent, legato, level, filterVelocity, glide);
+}
+
+void AcidAudioProcessor::playNoteOff() noexcept
+{
+    voice.noteOff();
+    voice303.noteOff();
 }
 
 void AcidAudioProcessor::applyArpEvent (const as::arp::NoteEvent& e) noexcept
@@ -590,7 +670,7 @@ void AcidAudioProcessor::applyArpEvent (const as::arp::NoteEvent& e) noexcept
     {
         case Type::Start:
             // mono: the newest note takes the voice (in Chord mode, the top note)
-            voice.noteOn (e.note, e.accent, false, level, filterVelocity);
+            playNoteOn (e.note, e.accent, false, level, filterVelocity);
             gui.lastVelocity.store (laneVelocity);
             voiceArpId = e.id;
             for (auto& l : lfos) l.noteTriggered();
@@ -600,7 +680,7 @@ void AcidAudioProcessor::applyArpEvent (const as::arp::NoteEvent& e) noexcept
             // a tie: glide to the new pitch over the Glide time, without retriggering
             if (e.id == voiceArpId)
             {
-                voice.noteOn (e.note, e.accent, true, level, filterVelocity, e.glide);   // Glide slides, Tie jumps
+                playNoteOn (e.note, e.accent, true, level, filterVelocity, e.glide);   // Glide slides, Tie jumps
                 gui.lastVelocity.store (laneVelocity);
             }
             break;
@@ -608,7 +688,7 @@ void AcidAudioProcessor::applyArpEvent (const as::arp::NoteEvent& e) noexcept
         case Type::Stop:
             if (e.id == voiceArpId)
             {
-                voice.noteOff();
+                playNoteOff();
                 voiceArpId = 0;
             }
             break;
@@ -640,7 +720,7 @@ void AcidAudioProcessor::handleDirectMidi (const MidiMessage& msg) noexcept
         remove (note);
         if (numHeldNotes < (int) heldNotes.size()) heldNotes[(size_t) numHeldNotes++] = note;
         const float velocity = (float) msg.getVelocity() / 127.0f;
-        voice.noteOn (note, msg.getVelocity() >= 100, legato, velocity, velocity);
+        playNoteOn (note, msg.getVelocity() >= 100, legato, velocity, velocity);
         gui.lastVelocity.store (msg.getVelocity());
         if (! legato)
             for (auto& l : lfos) l.noteTriggered();
@@ -652,15 +732,15 @@ void AcidAudioProcessor::handleDirectMidi (const MidiMessage& msg) noexcept
         if (remove (note) && wasTop)
         {
             if (numHeldNotes > 0)
-                voice.noteOn (heldNotes[(size_t) numHeldNotes - 1], false, true);
+                playNoteOn (heldNotes[(size_t) numHeldNotes - 1], false, true);
             else
-                voice.noteOff();
+                playNoteOff();
         }
     }
     else if (msg.isAllNotesOff() || msg.isAllSoundOff())
     {
         numHeldNotes = 0;
-        voice.noteOff();
+        playNoteOff();
     }
 }
 
@@ -707,12 +787,22 @@ void AcidAudioProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffer& m
     }
     midiOutWasOn = midiOutOn;
 
+    // which synth plays: switching hands over (the old one's note ends and rings out)
+    const int engineNow = roundToInt (P.engine->load());
+    if (engineNow != activeEngine)
+    {
+        playNoteOff();
+        voiceArpId = 0;
+        numHeldNotes = 0;
+        activeEngine = engineNow;
+    }
+
     // Sequencer
     const auto settings = readArpSettings();
     if (settings.enabled != arpWasEnabled)
     {
         // hand the voice over between the keys and the sequencer
-        voice.noteOff();
+        playNoteOff();
         numHeldNotes = 0;
         voiceArpId = 0;
         releaseThruNotes (0, send);
@@ -761,7 +851,7 @@ void AcidAudioProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffer& m
             {
                 if (message.isAllSoundOff() || message.isResetAllControllers())
                 {
-                    voice.noteOff();
+                    playNoteOff();
                     voiceArpId = 0;
                     midiWriter.allNotesOff (pos, emit);
                 }
@@ -776,7 +866,7 @@ void AcidAudioProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffer& m
     renderVoice (left, right, rendered, total);
 
     // --- effects -------------------------------------------------------------------
-    tone.process (left, right, total);
+    distortion.process (left, right, total);     // Saturate / Foldback, then the three-band tube
     tube.process (left, right, total);
     echo.process (left, right, total);
 
@@ -804,10 +894,10 @@ void AcidAudioProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffer& m
     gui.running.store (settings.enabled && arp.isRunning());
     gui.hostPlaying.store (hostPlaying);
     gui.currentStep.store (settings.enabled ? arp.getCurrentStep() : -1);
-    gui.filterEnv.store (voice.getFilterEnv());
-    gui.accentCharge.store (voice.getAccentCharge());
-    gui.cutoffHz.store (voice.getLastCutoffHz());
-    gui.gateOn.store (voice.isGateOn());
+    gui.filterEnv.store (activeEngine == 1 ? voice303.getFilterEnv() : voice.getFilterEnv());
+    gui.accentCharge.store (activeEngine == 1 ? voice303.getAccentCharge() : voice.getAccentCharge());
+    gui.cutoffHz.store (activeEngine == 1 ? voice303.getLastCutoffHz() : voice.getLastCutoffHz());
+    gui.gateOn.store (activeEngine == 1 ? voice303.isGateOn() : voice.isGateOn());
     for (int i = 0; i < 2; ++i) gui.lfoPhase[i].store ((float) lfos[i].getPhase());
     for (int b = 0; b < 3; ++b) gui.bandLevel[b].store (tube.getBandLevel (b));
     publishHeldNotes();
@@ -909,7 +999,7 @@ bool AcidAudioProcessor::isPatchParameter (const String& id)
     if (id.startsWith ("rnd") || id.startsWith ("export") || id.startsWith ("arp") || id.startsWith ("seq")
         || id.startsWith ("scale"))
         return false;
-    for (auto* other : { volume, tune, echoOn, tubeOn, velMode, ParamIDs::bpm, autoPlay, midiOut })
+    for (auto* other : { volume, tune, echoOn, tubeOn, velMode, ParamIDs::bpm, autoPlay, midiOut, engine, distPageOn, distOn })
         if (id == other)
             return false;
     return true;
@@ -1006,6 +1096,19 @@ void AcidAudioProcessor::randomisePatch()
         set (lfo (i, "Rate"), knobForDivision (lfoDivs[r.nextInt (5)], (int) lfoDivisions().size()));
         set (lfo (i, "Retrig"), (float) r.nextInt (3));
     }
+
+    // the 303 page
+    set (b3Wave, chance (0.4f) ? 1.0f : 0.0f);
+    set (b3Cutoff, range (20.0f, 70.0f));
+    set (b3Resonance, range (40.0f, 95.0f));
+    set (b3EnvMod, range (25.0f, 90.0f));
+    set (b3Decay, range (10.0f, 70.0f));
+    set (b3Accent, range (40.0f, 95.0f));
+
+    // the Saturate / Foldback distortion (its on / off switch stays as it is)
+    set (distMode, chance (0.75f) ? 0.0f : 1.0f);
+    set (distDrive, range (15.0f, 75.0f));
+    set (distAmount, range (30.0f, 100.0f));
 
     randomiseTubeSettings();
     presets.setCurrentName ("Random");

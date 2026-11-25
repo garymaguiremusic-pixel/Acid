@@ -5,10 +5,8 @@
 #include "../arp/Controls.h"
 #include "../arp/VirusWidgets.h"
 #include "../arp/DragMidiHandle.h"
-#include "../arp/BrowserPanel.h"
 
-/** ArpSampler's sequencer: the Arpeggiator and Randomise panels, the Sequence Browser
-    strip (MIDI / audio files straight into the steps) and the step sequencer. */
+/** ArpSampler's sequencer: the Arpeggiator and Randomise panels and the step sequencer. */
 class SequencerPage : public PageBase
 {
 public:
@@ -18,7 +16,6 @@ public:
     void update() override;
 
 private:
-    void setSequenceBrowserVisible (bool);
 
     // Arpeggiator
     juce::TextButton arpOnButton { "Arp On" }, autoPlayButton { "Auto Play" }, midiOutButton { "MIDI Out" };
@@ -42,12 +39,5 @@ private:
     juce::ComboBox exportBarsBox, exportRootBox, exportChordBox;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> exportRootAttachment;
 
-    // Sequence Browser strip
-    LcdDisplay sequenceLcd;
-    StarButton favouriteButton;
-    ArrowIconButton backButton { false }, nextButton { true };
-    juce::TextButton browseButton { "Browse" };
-
     SeqPanel seqPanel;
-    BrowserPanel sequenceBrowser;
 };

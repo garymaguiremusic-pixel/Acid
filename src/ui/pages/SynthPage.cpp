@@ -5,7 +5,9 @@ using namespace acid;
 
 SynthPage::SynthPage (AcidAudioProcessor& p)
     : PageBase (p),
+      octaveA (*p.apvts.getParameter (ParamIDs::oscAOctave), "OSC A OCTAVE"),
       filterModeButtons (*p.apvts.getParameter (ParamIDs::filterMode), filterModeNames(), {}),
+      page303 (p),
       sequencer (p)
 {
     using namespace ParamIDs;
@@ -46,11 +48,20 @@ SynthPage::SynthPage (AcidAudioProcessor& p)
     addAndMakeVisible (envMeter);
     setHelp (envMeter, "ENV / ACC  -  the filter envelope and the accent-sweep charge, live");
 
+    addAndMakeVisible (octaveA);
+    addChildComponent (page303);
     addAndMakeVisible (sequencer);
+
+    // everything of the Acid sections (hidden while the 303 is shown)
+    for (auto* c : getChildren())
+        if (c != &page303 && c != &sequencer)
+            acidControls.push_back (c);
 }
 
 void SynthPage::paint (Graphics& g)
 {
+    if (shownEngine == 1)
+        return;     // the 303 section draws itself
     AcidLookAndFeel::drawPanel (g, { 8.0f, 0.0f, 150.0f, 206.0f }, "Osc");
     AcidLookAndFeel::drawPanel (g, { 164.0f, 0.0f, 500.0f, 206.0f }, "Filter");
     AcidLookAndFeel::drawPanel (g, { 670.0f, 0.0f, 322.0f, 206.0f }, "Envelope");
@@ -68,9 +79,11 @@ void SynthPage::resized()
 {
     // OSC
     waveButton.setBounds (20, 36, 126, 22);
-    waveDisplay.setBounds (20, 64, 126, 74);
-    retroButton.setBounds (20, 146, 126, 22);
-    lockButton.setBounds (20, 174, 126, 22);
+    waveDisplay.setBounds (20, 62, 126, 58);
+    octaveA.setBounds (20, 124, 126, 22);
+    retroButton.setBounds (20, 150, 126, 22);
+    lockButton.setBounds (20, 176, 126, 22);
+    page303.setBounds (0, 0, getWidth(), 206);
 
     // FILTER
     cutoffKnob.setBounds (178, 24, 116, 116);
@@ -102,6 +115,16 @@ void SynthPage::resized()
 
 void SynthPage::update()
 {
+    const int engine = roundToInt (value (ParamIDs::engine));
+    if (engine != shownEngine)
+    {
+        shownEngine = engine;
+        page303.setVisible (engine == 1);
+        for (auto* c : acidControls)
+            c->setVisible (engine == 0);
+        repaint();
+    }
+
     auto& gui = processor.gui;
 
     const bool square = value (ParamIDs::wave) > 0.5f;

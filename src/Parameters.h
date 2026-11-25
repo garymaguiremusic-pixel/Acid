@@ -33,6 +33,37 @@ namespace ParamIDs
     inline constexpr auto cutoff      = "cutoff";
     inline constexpr auto resonance   = "resonance";
     inline constexpr auto transistor  = "transistor";
+    inline constexpr auto engine          = "engine";        // which synth the page shows and the sequencer plays
+    inline constexpr auto oscAOctave      = "oscAOctave";
+    inline constexpr auto oscBOctave      = "oscBOctave";
+
+    // 303 page
+    inline constexpr auto b3Wave          = "b3Wave";
+    inline constexpr auto b3Tuning        = "b3Tuning";
+    inline constexpr auto b3Octave        = "b3Octave";
+    inline constexpr auto b3Cutoff        = "b3Cutoff";
+    inline constexpr auto b3Resonance     = "b3Resonance";
+    inline constexpr auto b3EnvMod        = "b3EnvMod";
+    inline constexpr auto b3Decay         = "b3Decay";
+    inline constexpr auto b3Accent        = "b3Accent";
+    inline constexpr auto b3Volume        = "b3Volume";
+    inline constexpr auto b3Model         = "b3Model";
+    inline constexpr auto b3AccurateGate  = "b3AccurateGate";
+    inline constexpr auto b3VcaNoise      = "b3VcaNoise";
+    inline constexpr auto b3Vibrato       = "b3Vibrato";
+    inline constexpr auto b3PhaseReset    = "b3PhaseReset";
+    inline constexpr auto b3SlowSlide     = "b3SlowSlide";
+    inline constexpr auto b3WeakAccentCap = "b3WeakAccentCap";
+    inline constexpr auto b3InfSustain    = "b3InfSustain";
+    inline constexpr auto b3SoftAccent    = "b3SoftAccent";
+
+    // Distortion page
+    inline constexpr auto distPageOn      = "distPageOn";     // the header's Dist button
+    inline constexpr auto distOn          = "distOn";         // the Saturate / Foldback section
+    inline constexpr auto distMode        = "distMode";
+    inline constexpr auto distDrive       = "distDrive";
+    inline constexpr auto distAmount      = "distAmount";
+
     inline constexpr auto filterMode      = "filterMode";
     inline constexpr auto oscALock        = "oscALock";
     inline constexpr auto oscBLock        = "oscBLock";
@@ -134,6 +165,10 @@ namespace ParamIDs
 // Choice lists
 inline juce::StringArray waveNames()       { return { "Saw", "Square" }; }
 inline juce::StringArray filterModeNames() { return { "LP", "BP", "HP" }; }
+inline juce::StringArray engineNames()     { return { "ACID", "303" }; }
+inline juce::StringArray b3WaveNames()     { return { "SAW", "SQR" }; }
+inline juce::StringArray b3ModelNames()    { return { "Classic", "Stable", "Drift" }; }
+inline juce::StringArray distModeNames()   { return { "SATURATE", "FOLDBACK" }; }
 inline juce::StringArray lfoShapeNames()   { return { "Sine", "Triangle", "Saw Up", "Saw Down", "Square", "S&H", "Smooth Random" }; }
 inline juce::StringArray lfoShapeShort()   { return { "SINE", "TRI", "SAW UP", "SAW DN", "SQUARE", "S&H", "SMOOTH" }; }
 inline juce::StringArray lfoRetrigNames()  { return { "Free", "Note", "Bar" }; }
