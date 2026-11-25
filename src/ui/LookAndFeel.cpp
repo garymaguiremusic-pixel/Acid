@@ -13,7 +13,7 @@ namespace
         t.panelTop     = Colour (0xff1b1b1d);  t.panelBottom  = Colour (0xff111112);
         t.headerTop    = Colour (0xff2e2e31);  t.headerBottom = Colour (0xff1e1e20);
         t.headerText   = Colour (0xffd9d9db);  t.labelText    = Colour (0xffb4b4b8);
-        t.text         = Colours::white;
+        t.text         = Colour (0xffffffff);
         t.bevelDark    = Colour (0xff000000);  t.bevelLight   = Colour (0x22ffffff);
         t.insetTop     = Colour (0xff050505);  t.insetBottom  = Colour (0xff141415);
         t.lcdTop       = Colour (0xff1c1714);  t.lcdBottom    = Colour (0xff0b0908);
