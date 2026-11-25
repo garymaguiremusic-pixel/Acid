@@ -25,8 +25,8 @@ struct ConvertedPattern
 const std::vector<FactoryPreset>& factoryPresets();
 
 /** Acid pattern notation (one token per step, separated by spaces), turned into sequencer
-    steps: the note becomes the step's transpose from the Key's root, a slide becomes a Tie
-    (it glides into the next step), a tie holds the previous note, a rest is Volume 0.
+    steps: the note becomes the step's transpose from the Key's root, a slide becomes a Glide
+    (it slides into the next step), a tie holds the previous note, a rest is Volume 0.
       C D# F ... B    note (C' = the high C)
       -               rest
       _               tie (extends the previous note)

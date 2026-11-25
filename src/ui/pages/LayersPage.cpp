@@ -9,6 +9,7 @@ LayersPage::LayersPage (AcidAudioProcessor& p) : PageBase (p)
     attach (oscBLevel, ParamIDs::oscBLevel);
     attach (oscBTune, ParamIDs::oscBTune);
     attach (oscBDetune, ParamIDs::oscBDetune);
+    attach (oscBLockButton, ParamIDs::oscBLock);
     attach (unisonFree, ParamIDs::unisonFree);
     attach (voices, unisonVoices);
     attach (spread, unisonSpread);
@@ -124,9 +125,10 @@ void LayersPage::layoutLfo (int i, int x0)
 
 void LayersPage::resized()
 {
-    oscBLevel.setBounds (22, 32, 72, 84);
-    oscBTune.setBounds (96, 32, 72, 84);
-    oscBDetune.setBounds (170, 32, 72, 84);
+    oscBLevel.setBounds (22, 24, 72, 84);
+    oscBTune.setBounds (96, 24, 72, 84);
+    oscBDetune.setBounds (170, 24, 72, 84);
+    oscBLockButton.setBounds (22, 116, 220, 24);
 
     unisonFree.setBounds (280, 58, 86, 24);
     voices.setBounds (382, 32, 72, 84);

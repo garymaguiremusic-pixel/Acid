@@ -116,6 +116,17 @@ float Ladder::process (float x, float cutoffHz, float resonance) noexcept
         flushDenormal (hpState);
     }
 
+    switch (mode)
+    {
+        // band-pass: LP2 x HP2 for the transistor ladder; for the coupled diode ladder the
+        // mix y2 - 3 y3 + 2 y4 peaks at the cutoff and falls ~22 dB four octaves either side.
+        // high-pass = HP4 (exact for the transistor ladder, a close cousin for the diode one)
+        // (gains trimmed so each type plays at about the low-pass level)
+        case Mode::BandPass: return diode ? 3.6f * (y[1] - 3.0f * y[2] + 2.0f * y[3])
+                                          : 3.0f * (y[1] - 2.0f * y[2] + y[3]);
+        case Mode::HighPass: return 0.6f * (u - 4.0f * y[0] + 6.0f * y[1] - 4.0f * y[2] + y[3]);
+        case Mode::LowPass:  break;
+    }
     return y[3];
 }
 } // namespace acid

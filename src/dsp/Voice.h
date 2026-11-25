@@ -25,6 +25,9 @@ struct VoiceSettings
     float accSweep        = 0.3f;     // 0..1
     float drive           = 0.0f;     // 0..1
     bool  transistor      = false;
+    int   filterMode      = 0;        // 0 LP, 1 BP, 2 HP
+    bool  oscALock        = false;    // phase lock: Osc A (and its unison voices) restart on every note
+    bool  oscBLock        = false;    // phase lock: Osc B restarts on every note
     bool  velLink         = false;    // velocity moves the cutoff
     float velAmount       = 0.5f;     // 0..1: how far (up to kVelocityOctaves)
 
@@ -68,10 +71,12 @@ public:
     void reset();
     void setSettings (const VoiceSettings& s);
 
-    /** legato = slide: glide to the new pitch without retriggering the envelopes.
+    /** legato: no retrigger of the envelopes; the pitch glides there over the slide time
+        (glide = true), or moves straight to it (glide = false, a plain tie).
         level (0..1) scales the note's loudness (the sequencer's velocity x Volume).
         filterVelocity (0..1) drives Vel Link: 1 leaves the cutoff, lower closes it. */
-    void noteOn (int midiNote, bool accent, bool legato, float level = 1.0f, float filterVelocity = 1.0f);
+    void noteOn (int midiNote, bool accent, bool legato, float level = 1.0f, float filterVelocity = 1.0f,
+                 bool glide = true);
     void noteOff();
     bool isGateOn() const noexcept { return gate; }
 

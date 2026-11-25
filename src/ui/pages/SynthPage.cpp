@@ -3,7 +3,10 @@
 using namespace juce;
 using namespace acid;
 
-SynthPage::SynthPage (AcidAudioProcessor& p) : PageBase (p), sequencer (p)
+SynthPage::SynthPage (AcidAudioProcessor& p)
+    : PageBase (p),
+      filterModeButtons (*p.apvts.getParameter (ParamIDs::filterMode), filterModeNames(), {}),
+      sequencer (p)
 {
     using namespace ParamIDs;
 
@@ -14,6 +17,7 @@ SynthPage::SynthPage (AcidAudioProcessor& p) : PageBase (p), sequencer (p)
     addAndMakeVisible (waveDisplay);
     setHelp (waveDisplay, "WAVE  -  the oscillator waveform, drawn from the DSP");
     attach (retroButton, retro);
+    attach (lockButton, oscALock);
 
     // FILTER
     attach (cutoffKnob, cutoff);
@@ -23,6 +27,8 @@ SynthPage::SynthPage (AcidAudioProcessor& p) : PageBase (p), sequencer (p)
     attach (bassKnob, bass);
     attach (trebleKnob, treble);
     attach (transistorButton, transistor);
+    addAndMakeVisible (filterModeButtons);
+    setHelp (filterModeButtons, "FILTER TYPE  -  " + helpForParameter (filterMode));
     addAndMakeVisible (cutoffLcd);
     addAndMakeVisible (resoLcd);
     attach (velLinkButton, filterVelLink);
@@ -62,8 +68,9 @@ void SynthPage::resized()
 {
     // OSC
     waveButton.setBounds (20, 36, 126, 22);
-    waveDisplay.setBounds (20, 64, 126, 82);
-    retroButton.setBounds (20, 156, 126, 22);
+    waveDisplay.setBounds (20, 64, 126, 74);
+    retroButton.setBounds (20, 146, 126, 22);
+    lockButton.setBounds (20, 174, 126, 22);
 
     // FILTER
     cutoffKnob.setBounds (178, 24, 116, 116);
@@ -74,7 +81,8 @@ void SynthPage::resized()
     driveKnob.setBounds (504, 22, 72, 76);
     bassKnob.setBounds (430, 100, 72, 76);
     trebleKnob.setBounds (504, 100, 72, 76);
-    transistorButton.setBounds (178, 176, 242, 22);
+    filterModeButtons.setBounds (178, 176, 116, 22);      // beside the cutoff
+    transistorButton.setBounds (304, 176, 116, 22);
     velLinkButton.setBounds (590, 40, 66, 22);
     velAmountKnob.setBounds (586, 68, 74, 80);
     velocityLcd.setBounds (588, 152, 70, 22);

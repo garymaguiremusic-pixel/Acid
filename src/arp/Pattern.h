@@ -12,18 +12,20 @@ namespace as::arp
     {
         int transpose = 0;      // -24..+24: semitones, or notes of the scale when the pattern uses scale steps
         int velocity = 100;     // 1..127, used by the Step / Step+Key / Step+Hold velocity modes (0 also rests)
-        bool tie = false;       // hold this step's note into the next step without retriggering
+        bool tie = false;       // hold this step's note into the next step without retriggering (Acid: no slide)
         int ratchet = 1;        // 1..kMaxRatchet: the note is retriggered this many times within the step
         bool reverse = false;   // notes started on this step play the sample backwards
         int volume = 127;       // 0..127 loudness of the step in every velocity mode; 0 = silent (rest)
         bool accent = false;    // accented: full velocity, louder, filter opens further (MIDI: velocity 127)
+        bool glide = false;     // Acid: hold into the next step and slide to its pitch over the Glide time (303 slide)
 
         bool isRest() const noexcept    { return volume <= 0 || velocity <= 0; }
 
         bool operator== (const Step& o) const noexcept
         {
             return transpose == o.transpose && velocity == o.velocity && tie == o.tie
-                && ratchet == o.ratchet && reverse == o.reverse && volume == o.volume && accent == o.accent;
+                && ratchet == o.ratchet && reverse == o.reverse && volume == o.volume && accent == o.accent
+                && glide == o.glide;
         }
         bool operator!= (const Step& o) const noexcept   { return ! operator== (o); }
     };
@@ -70,4 +72,10 @@ namespace as::arp
     {
         return endStep > 0 ? std::min (endStep, length) : length;
     }
+}
+
+namespace as::arp
+{
+    /** Holds into the next step (Tie or Glide). */
+    inline bool holdsIntoNext (const Step& s) noexcept   { return s.tie || s.glide; }
 }

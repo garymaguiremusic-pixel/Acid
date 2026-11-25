@@ -243,3 +243,70 @@ TEST_CASE ("Vel Link: lower velocity closes the cutoff, 127 leaves it, a tie sli
     v.render (l.data(), r.data(), 4800, {}, 0);        // 100 ms later: arrived
     REQUIRE (v.getLastCutoffHz() < open / 12.0f);
 }
+
+TEST_CASE ("A legato note without glide jumps straight to the new pitch", "[dsp][slide]")
+{
+    Voice v;
+    v.prepare (48000.0);
+    VoiceSettings s;
+    s.slideMs = 200.0f;
+    v.setSettings (s);
+    std::vector<float> l (480), r (480);
+    v.noteOn (48, false, false);
+    v.render (l.data(), r.data(), 480, {}, 0);
+    v.noteOn (55, false, true, 1.0f, 1.0f, false);     // a Tie: no slide
+    REQUIRE (std::abs (v.getCurrentPitch() - 55.0f) < 1.0e-3f);
+}
+
+TEST_CASE ("Filter types: band-pass and high-pass shapes", "[dsp][filter]")
+{
+    auto levelAt = [] (Ladder::Model model, Ladder::Mode mode, float hz)
+    {
+        Ladder f;
+        f.setModel (model);
+        f.setMode (mode);
+        f.prepare (96000.0);
+        double sum = 0.0;
+        for (int i = 0; i < 96000; ++i)
+        {
+            const float y = f.process (0.1f * std::sin (kTwoPi * hz * (float) i / 96000.0f), 1000.0f, 0.0f);
+            if (i > 48000) sum += (double) y * y;
+        }
+        return std::sqrt (sum / 47999.0);
+    };
+    for (auto model : { Ladder::Model::Transistor, Ladder::Model::Diode })
+    {
+        // high-pass: lows cut, highs through
+        REQUIRE (levelAt (model, Ladder::Mode::HighPass, 100.0f) < 0.1 * levelAt (model, Ladder::Mode::HighPass, 10000.0f));
+        // band-pass: both ends lower than around the cutoff
+        const double mid = levelAt (model, Ladder::Mode::BandPass, 1000.0f);
+        REQUIRE (levelAt (model, Ladder::Mode::BandPass, 60.0f) < 0.5 * mid);
+        REQUIRE (levelAt (model, Ladder::Mode::BandPass, 16000.0f) < 0.5 * mid);
+    }
+}
+
+TEST_CASE ("Phase lock: every note starts the wave at the same point", "[dsp][osc]")
+{
+    auto firstSamples = [] (bool lock)
+    {
+        Voice v;
+        v.prepare (48000.0);
+        VoiceSettings s;
+        s.oscALock = lock;
+        s.envMod = 0.0f; s.cutoffLowHz = 20000.0f; s.cutoffHz = 20000.0f; s.resonance = 0.0f;
+        v.setSettings (s);
+        std::vector<float> l (2048), r (2048), a, b;
+        v.noteOn (45, false, false);
+        v.render (l.data(), r.data(), 2048, {}, 0);
+        a.assign (l.begin(), l.begin() + 512);
+        v.noteOff();
+        v.render (l.data(), r.data(), 777, {}, 0);       // an odd gap so a free oscillator lands elsewhere
+        v.noteOn (45, false, false);
+        v.render (l.data(), r.data(), 2048, {}, 0);
+        b.assign (l.begin(), l.begin() + 512);
+        double diff = 0.0;
+        for (size_t i = 64; i < 512; ++i) diff += std::abs (a[i] - b[i]);
+        return diff;
+    };
+    REQUIRE (firstSamples (true) < firstSamples (false) * 0.2);
+}

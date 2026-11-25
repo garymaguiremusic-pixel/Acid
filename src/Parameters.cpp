@@ -109,6 +109,11 @@ String helpForParameter (const String& id)
         { cutoff,      "Filter cutoff: where the resonant peak sits." },
         { resonance,   "Filter resonance. The diode model squelches but never whistles." },
         { transistor,  "Switch the filter from the diode ladder to a transistor ladder." },
+        { filterMode,  "Filter type: low-pass (classic), band-pass or high-pass, all from the same ladder." },
+        { oscALock,    "Phase lock: Osc A (and its unison voices) starts every note at the same point of its wave." },
+        { oscBLock,    "Phase lock: Osc B starts every note at the same point of its wave." },
+        { rndGlide,    "Randomise: the chance a playing step glides (slides) into the next." },
+        { rndLockGlide, "Keep the current glides when randomising." },
         { filterVelLink, "Vel Link: velocity moves the cutoff. The sequencer's Velocity lane when it plays, the keys otherwise." },
         { filterVelAmount, "How far low velocities close the cutoff (100 % = up to 4 octaves at the lowest velocity; 127 = no change)." },
         { bass,        "Low shelf after the filter." },
@@ -120,7 +125,7 @@ String helpForParameter (const String& id)
         { envAttack,   "Soft attack of the filter envelope." },
         { accDecay,    "Filter envelope decay for accented notes." },
         { accSweep,    "Accent sweep: consecutive accents build the cutoff up higher and higher." },
-        { slideTime,   "Glide: how long a tied step takes to slide to its new pitch." },
+        { slideTime,   "Glide time: how long a Glide step takes to slide to the next step's pitch." },
         { arpOn,       "Arpeggiator / sequencer on. Off: incoming MIDI plays the synth directly." },
         { arpMode,     "Arp mode. Step and Chord play the step sequencer." },
         { arpRate,     "Step length, synced to the tempo." },
@@ -139,7 +144,7 @@ String helpForParameter (const String& id)
         { scaleLock,   "Scale Lock: the Transpose numbers count notes of the scale, so everything stays in key." },
         { rndDensity,  "Randomise: the chance a step plays." },
         { rndRange,    "Randomise: the transpose range." },
-        { rndTieProb,  "Randomise: the chance a playing step ties (glides) into the next." },
+        { rndTieProb,  "Randomise: the chance a playing step ties (holds) into the next." },
         { rndVelMin,   "Randomise: lowest velocity." },
         { rndVelMax,   "Randomise: highest velocity." },
         { rndRatchet,  "Randomise: the chance a playing step gets 2-4 ratchet hits." },
@@ -250,6 +255,9 @@ AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     knob (cutoff,    "Cutoff",     45.0f);
     knob (resonance, "Resonance",  65.0f);
     toggle (transistor, "Transistor", false);
+    choice (filterMode, "Filter Type", filterModeNames(), 0);
+    toggle (oscALock, "Osc A Phase Lock", false);
+    toggle (oscBLock, "Osc B Phase Lock", false);
     toggle (filterVelLink, "Filter Velocity Link", false);
     knob (filterVelAmount, "Filter Velocity Amount", 50.0f);
     number (bass,   "Bass",   -12.0f, 12.0f, 0.0f);
@@ -304,6 +312,8 @@ AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     setting (rndVelMax, "Rnd Vel Max", 1.0f, 127.0f, 127.0f);
     setting (rndRatchet, "Rnd Ratchet Prob", 0.0f, 100.0f, 10.0f);
     setting (rndAccent, "Rnd Accent Prob", 0.0f, 100.0f, 25.0f);
+    setting (rndGlide, "Rnd Glide Prob", 0.0f, 100.0f, 20.0f);
+    settingToggle (rndLockGlide, "Rnd Lock Glides", false);
     settingToggle (rndLockPitch, "Rnd Lock Pitch", false);
     settingToggle (rndLockVel, "Rnd Lock Velocity", false);
     settingToggle (rndLockRest, "Rnd Lock Rests", false);

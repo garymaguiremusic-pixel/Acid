@@ -33,6 +33,9 @@ namespace ParamIDs
     inline constexpr auto cutoff      = "cutoff";
     inline constexpr auto resonance   = "resonance";
     inline constexpr auto transistor  = "transistor";
+    inline constexpr auto filterMode      = "filterMode";
+    inline constexpr auto oscALock        = "oscALock";
+    inline constexpr auto oscBLock        = "oscBLock";
     inline constexpr auto filterVelLink   = "filterVelLink";
     inline constexpr auto filterVelAmount = "filterVelAmount";
     inline constexpr auto bass        = "bass";
@@ -72,6 +75,8 @@ namespace ParamIDs
     inline constexpr auto rndVelMax      = "rndVelMax";
     inline constexpr auto rndRatchet     = "rndRatchet";
     inline constexpr auto rndAccent      = "rndAccent";
+    inline constexpr auto rndGlide       = "rndGlide";
+    inline constexpr auto rndLockGlide   = "rndLockGlide";
     inline constexpr auto rndLockPitch   = "rndLockPitch";
     inline constexpr auto rndLockVel     = "rndLockVel";
     inline constexpr auto rndLockRest    = "rndLockRest";
@@ -128,6 +133,7 @@ namespace ParamIDs
 //==============================================================================
 // Choice lists
 inline juce::StringArray waveNames()       { return { "Saw", "Square" }; }
+inline juce::StringArray filterModeNames() { return { "LP", "BP", "HP" }; }
 inline juce::StringArray lfoShapeNames()   { return { "Sine", "Triangle", "Saw Up", "Saw Down", "Square", "S&H", "Smooth Random" }; }
 inline juce::StringArray lfoShapeShort()   { return { "SINE", "TRI", "SAW UP", "SAW DN", "SQUARE", "S&H", "SMOOTH" }; }
 inline juce::StringArray lfoRetrigNames()  { return { "Free", "Note", "Bar" }; }

@@ -128,7 +128,10 @@ namespace as::import
             for (int j = k + 1; j < jmin (maxSteps, k + span); ++j)
             {
                 if (owner[(size_t) j] >= 0)
-                    break;                      // the next note starts here
+                {
+                    steps[(size_t) j - 1].glide = true;   // still sounding when the next note starts: a slide (Acid)
+                    break;
+                }
                 steps[(size_t) j - 1].tie = true;
                 auto& held = steps[(size_t) j];
                 held.transpose = s.transpose;

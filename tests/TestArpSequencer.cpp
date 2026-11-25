@@ -118,9 +118,10 @@ TEST_CASE ("Factory notation becomes sequencer steps", "[presets]")
     REQUIRE (s[0].transpose == 9);
     REQUIRE (s[1].transpose == 12);
     REQUIRE (s[1].accent);
-    REQUIRE (s[1].tie);                  // slide -> tie (glide into D)
+    REQUIRE (s[1].glide);                // slide -> Glide (slides into D)
+    REQUIRE_FALSE (s[1].tie);
     REQUIRE (s[3].isRest());
-    REQUIRE (s[4].tie);                  // tied into the next step
+    REQUIRE (s[4].tie);                  // tied into the next step (the _)
     REQUIRE (s[5].transpose == s[4].transpose);
     REQUIRE (s[6].transpose == 16);
     REQUIRE (s[6].ratchet == 2);
@@ -148,7 +149,7 @@ TEST_CASE ("Patterns saved by the first Acid version still load", "[presets]")
     REQUIRE (c.length == 16);
     REQUIRE (c.pattern.steps[0].transpose == 9);
     REQUIRE (c.pattern.steps[0].accent);
-    REQUIRE_FALSE (c.pattern.steps[0].tie);     // its slide went into a rest
+    REQUIRE_FALSE (c.pattern.steps[0].glide);   // its slide went into a rest
     REQUIRE (c.pattern.steps[1].isRest());
 }
 
@@ -196,4 +197,32 @@ TEST_CASE ("Randomise is repeatable per seed and keeps locked lanes", "[randomis
     REQUIRE (a.steps[0].accent);
     for (size_t i = 1; i < a.steps.size(); ++i)
         REQUIRE_FALSE (a.steps[i].accent);
+}
+
+TEST_CASE ("Glide slides into the next step, Tie holds without sliding", "[arp]")
+{
+    Pattern p;
+    p.steps[0].glide = true;
+    p.steps[1].transpose = 5;
+    p.steps[1].tie = true;
+    p.steps[2].transpose = 9;
+    const auto changes = ofType (run (p, stepSettings(), 6000 * 3), NoteEvent::Type::Change);
+    REQUIRE (changes.size() == 2);
+    REQUIRE (changes[0].sample == 6000);
+    REQUIRE (changes[0].ev.glide);          // from the Glide step: slide
+    REQUIRE (changes[1].sample == 12000);
+    REQUIRE_FALSE (changes[1].ev.glide);    // from the Tie step: jump
+}
+
+TEST_CASE ("Randomise fills the Glide lane and its lock keeps it", "[randomise]")
+{
+    Pattern current;
+    RandomiseSettings s;
+    s.glideProbability = 1.0f;
+    s.density = 1.0f;
+    auto a = randomisePattern (current, s, 7);
+    for (auto& st : a.steps) REQUIRE (st.glide);
+    s.lockGlides = true;
+    auto b = randomisePattern (current, s, 7);
+    for (auto& st : b.steps) REQUIRE_FALSE (st.glide);
 }

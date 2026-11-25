@@ -50,6 +50,8 @@ void Voice::setSettings (const VoiceSettings& s)
     const auto model = s.transistor ? Ladder::Model::Transistor : Ladder::Model::Diode;
     ladderL.setModel (model);
     ladderR.setModel (model);
+    ladderL.setMode ((Ladder::Mode) std::clamp (s.filterMode, 0, 2));
+    ladderR.setMode ((Ladder::Mode) std::clamp (s.filterMode, 0, 2));
     ampEnv.setTimes (s.ampAttackMs, s.ampDecayMs, s.ampHold, s.ampReleaseMs);
     accentCircuit.setSweep (s.accSweep);
     glideCoef = onePoleCoef (std::max (1.0f, s.slideMs) / 3.0f, sr);   // ~95 % of the way after slideMs
@@ -67,7 +69,7 @@ void Voice::setSettings (const VoiceSettings& s)
     }
 }
 
-void Voice::noteOn (int midiNote, bool accent, bool legato, float level, float filterVelocity)
+void Voice::noteOn (int midiNote, bool accent, bool legato, float level, float filterVelocity, bool glide)
 {
     targetNote = (float) midiNote;
     levelTarget = clampf (level, 0.0f, 1.0f);
@@ -78,7 +80,11 @@ void Voice::noteOn (int midiNote, bool accent, bool legato, float level, float f
         accentEnv.trigger (std::max (0.3f, set.envAttackMs), set.accDecayMs);
 
     if (legato && gate)
-        return;   // slide: the pitch glides, the envelopes carry on
+    {
+        if (! glide)
+            currentNote = targetNote;    // a tie without glide: straight to the new pitch
+        return;   // the envelopes carry on
+    }
 
     currentNote = targetNote;
     velSm = velTarget;
@@ -93,12 +99,12 @@ void Voice::noteOn (int midiNote, bool accent, bool legato, float level, float f
     else
         noteDrift = 0.0f;
 
-    if (! set.unisonFree)
-    {
+    // phase lock: the oscillator starts every note at the same point of its wave
+    if (set.oscALock || ! set.unisonFree)
         for (int i = 0; i < kMaxUnison; ++i)
-            unison[i].resetPhase (0.13 * i);
+            unison[i].resetPhase (activeVoices > 1 ? 0.13 * i : 0.0);
+    if (set.oscBLock || ! set.unisonFree)
         oscB.resetPhase (0.0);
-    }
 }
 
 void Voice::noteOff()

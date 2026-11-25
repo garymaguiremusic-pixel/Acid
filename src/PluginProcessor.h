@@ -108,6 +108,12 @@ public:
     /** Header Clear: every sound parameter back to its default (the pattern stays). */
     void initSound();
 
+    /** Header Randomise: a new patch within musical ranges (the pattern and arp settings stay). */
+    void randomisePatch();
+    void undoRandomPatch();
+    bool canUndoRandomPatch() const { return ! patchUndo.empty(); }
+    static bool isPatchParameter (const juce::String& id);
+
     acid::PresetManager presets;
 
     //==============================================================================
@@ -146,6 +152,9 @@ private:
     void passThrough (const juce::MidiMessage&, int time) noexcept;
     void publishHeldNotes() noexcept;
     void pushTubeUndo();
+    void randomiseTubeSettings();
+    std::vector<std::pair<juce::String, float>> capturePatch() const;
+    std::vector<std::vector<std::pair<juce::String, float>>> patchUndo;
     std::vector<float> captureTube() const;
     void restoreTube (const std::vector<float>&);
     static juce::StringArray tubeParameterIds();
@@ -199,7 +208,7 @@ private:
     struct ParamPointers
     {
         std::atomic<float> *tune, *volume, *echoOn, *tubeOn, *wave, *retro, *cutoffLow, *cutoff, *resonance,
-            *transistor, *filterVelLink, *filterVelAmount, *bass, *treble, *drive, *envMod, *decay, *accent, *envAttack, *accDecay, *accSweep, *slideTime,
+            *transistor, *filterVelLink, *filterVelAmount, *filterMode, *oscALock, *oscBLock, *bass, *treble, *drive, *envMod, *decay, *accent, *envAttack, *accDecay, *accSweep, *slideTime,
             *arpOn, *arpMode, *arpRate, *arpRateType, *arpGate, *arpSwing, *arpOctave, *velMode, *bpm, *autoPlay,
             *midiOut, *seqLength, *seqEnd, *scaleKey, *scale, *scaleLock,
             *oscBLevel, *oscBTune, *oscBDetune, *unisonVoices, *unisonSpread, *unisonFree,

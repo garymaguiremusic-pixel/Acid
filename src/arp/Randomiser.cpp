@@ -54,7 +54,8 @@ namespace as::arp
             const float ratchetRoll = rng.nextFloat();
             const float ratchetCountRoll = rng.nextFloat();
             const float reverseRoll = rng.nextFloat();
-            const float accentRoll = rng.nextFloat();     // drawn last, so older lanes keep their values per seed
+            const float accentRoll = rng.nextFloat();     // drawn after the older lanes, so they keep their values per seed
+            const float glideRoll = rng.nextFloat();      // Acid's Glide lane, drawn last
 
             const bool active = s.lockRests ? ! old.isRest() : activeRoll < s.density;
 
@@ -92,6 +93,11 @@ namespace as::arp
                 step.accent = old.accent;
             else
                 step.accent = active && accentRoll < s.accentProbability;
+
+            if (s.lockGlides)
+                step.glide = old.glide;
+            else
+                step.glide = active && glideRoll < s.glideProbability;
         }
         return p;
     }

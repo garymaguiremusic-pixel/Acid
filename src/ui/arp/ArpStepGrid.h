@@ -15,7 +15,8 @@
       Ratchet:    click to cycle 1-4 hits per step (shift-click backwards), drag across
                   to copy, scroll wheel, double-click = 1.
       Accent:     click (or drag across) to accent the step (full velocity, filter opens further).
-      Tie:        click (or drag across) to toggle.
+      Glide:      click (or drag across): the step slides into the next one over the Glide time (303 slide).
+      Tie:        click (or drag across): hold into the next step without sliding.
 
     Each mouse gesture is one undo step.
 */
@@ -62,13 +63,13 @@ public:
     juce::String getHoverHelp() const;
 
 private:
-    enum class Lane { None, Header, Volume, Velocity, Transpose, Ratchet, Reverse, Accent, Tie };
+    enum class Lane { None, Header, Volume, Velocity, Transpose, Ratchet, Reverse, Accent, Glide, Tie };
 
     void changeListenerCallback (juce::ChangeBroadcaster*) override;
 
     struct Layout
     {
-        juce::Rectangle<float> labels, header, volume, velocity, transpose, ratchet, accent, tie;
+        juce::Rectangle<float> labels, header, volume, velocity, transpose, ratchet, accent, glide, tie;
         float gridX = 0.0f, stepWidth = 1.0f;
     };
 
@@ -89,7 +90,7 @@ private:
     Lane dragLane = Lane::None;
     int dragStep = -1, dragStartTranspose = 0;
     float dragStartY = 0.0f;
-    bool tiePaintValue = false, reversePaintValue = false, accentPaintValue = false;
+    bool tiePaintValue = false, reversePaintValue = false, accentPaintValue = false, glidePaintValue = false;
     int ratchetPaintValue = 1;
     int hoverStep = -1;
     juce::String dropHint, status;

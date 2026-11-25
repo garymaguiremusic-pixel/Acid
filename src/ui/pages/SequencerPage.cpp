@@ -49,13 +49,14 @@ SequencerPage::SequencerPage (AcidAudioProcessor& p)
 
     const std::pair<AcidKnob*, const char*> knobs[] = { { &densityKnob, rndDensity }, { &rangeKnob, rndRange }, { &tieKnob, rndTieProb },
                                                         { &ratchetKnob, rndRatchet }, { &accentKnob, rndAccent },
-                                                        { &velLoKnob, rndVelMin }, { &velHiKnob, rndVelMax } };
+                                                        { &velLoKnob, rndVelMin }, { &velHiKnob, rndVelMax }, { &glideKnob, rndGlide } };
     for (auto [knob, id] : knobs)
         attach (*knob, id);
 
     const std::pair<TextButton*, const char*> locks[] = { { &lockPitchButton, rndLockPitch }, { &lockVelButton, rndLockVel },
                                                           { &lockRestButton, rndLockRest }, { &lockTieButton, rndLockTie },
-                                                          { &lockRatchetButton, rndLockRatchet }, { &lockAccentButton, rndLockAccent } };
+                                                          { &lockRatchetButton, rndLockRatchet }, { &lockAccentButton, rndLockAccent },
+                                                          { &lockGlideButton, rndLockGlide } };
     for (auto [button, id] : locks)
         attach (*button, id);
 
@@ -158,12 +159,12 @@ void SequencerPage::resized()
     const int rx = (int) kRandomPanel.getX(), ry = (int) kRandomPanel.getY();
     randomiseButton.setBounds (rx + 10, ry + 28, 280, 28);
     randomUndoButton.setBounds (rx + 298, ry + 28, 290, 28);
-    AcidKnob* rndKnobs[] = { &densityKnob, &rangeKnob, &tieKnob, &ratchetKnob, &accentKnob, &velLoKnob, &velHiKnob };
+    AcidKnob* rndKnobs[] = { &densityKnob, &rangeKnob, &glideKnob, &tieKnob, &ratchetKnob, &accentKnob, &velLoKnob, &velHiKnob };
+    for (int i = 0; i < 8; ++i)
+        rndKnobs[i]->setBounds (rx + 10 + i * 72, ry + 62, 70, 76);
+    TextButton* locks[] = { &lockPitchButton, &lockVelButton, &lockRestButton, &lockGlideButton, &lockTieButton, &lockRatchetButton, &lockAccentButton };
     for (int i = 0; i < 7; ++i)
-        rndKnobs[i]->setBounds (rx + 14 + i * 82, ry + 62, 76, 76);
-    TextButton* locks[] = { &lockPitchButton, &lockVelButton, &lockRestButton, &lockTieButton, &lockRatchetButton, &lockAccentButton };
-    for (int i = 0; i < 6; ++i)
-        locks[i]->setBounds (rx + 56 + i * 88, ry + 142, 82, 22);
+        locks[i]->setBounds (rx + 52 + i * 76, ry + 142, 72, 22);
     scaleLockButton.setBounds (rx + 10, ry + 174, 110, 26);
     keyBox.setBounds (rx + 128, ry + 174, 70, 26);
     scaleBox.setBounds (rx + 206, ry + 174, 180, 26);

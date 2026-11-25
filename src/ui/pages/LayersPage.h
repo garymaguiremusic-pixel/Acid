@@ -25,6 +25,7 @@ private:
     void setupLfo (int index);
     void layoutLfo (int index, int x0);
 
+    juce::TextButton oscBLockButton { "Phase Lock" };
     AcidKnob oscBLevel { AcidKnob::Size::Small, "Level" }, oscBTune { AcidKnob::Size::Small, "Tune" }, oscBDetune { AcidKnob::Size::Small, "Detune" };
     juce::TextButton unisonFree { "Free" };
     AcidKnob voices { AcidKnob::Size::Small, "Voices" }, spread { AcidKnob::Size::Small, "Spread" };

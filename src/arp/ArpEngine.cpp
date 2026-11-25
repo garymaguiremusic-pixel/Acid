@@ -360,7 +360,7 @@ namespace as::arp
             for (int j = 0; j < kMaxHeld; ++j)
             {
                 auto& s = slots[(size_t) j];
-                if (s.awaitingTie && ! step.tie)
+                if (s.awaitingTie && ! holdsIntoNext (step))
                 {
                     s.awaitingTie = false;
                     scheduleStop (stopFor (s, j), offset, out);
@@ -412,6 +412,7 @@ namespace as::arp
                 e.type = NoteEvent::Type::Change;
                 e.legato = s.legato;
                 e.id = s.id;
+                e.glide = s.glideInto;
             }
             else
             {
@@ -433,8 +434,9 @@ namespace as::arp
 
             if (ratchets == 1)
             {
-                s.awaitingTie = step.tie;
-                if (! step.tie)
+                s.awaitingTie = holdsIntoNext (step);
+                s.glideInto = step.glide;
+                if (! s.awaitingTie)
                     scheduleStop (stopFor (s, i), offset, out);
                 continue;
             }
@@ -460,12 +462,13 @@ namespace as::arp
                 s.id = hit.id;
 
                 // a tie holds the last hit into the next step
-                const bool holdIntoNext = h == ratchets - 1 && step.tie;
+                const bool holdIntoNext = h == ratchets - 1 && holdsIntoNext (step);
                 if (! holdIntoNext)
                     scheduleEvent (stopFor (s, i), at + hitGate, out);
             }
 
-            s.awaitingTie = step.tie;
+            s.awaitingTie = holdsIntoNext (step);
+            s.glideInto = step.glide;
         }
 
         // tied slots with nothing to continue into end now

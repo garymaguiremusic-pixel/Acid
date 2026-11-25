@@ -18,11 +18,13 @@ class Ladder
 {
 public:
     enum class Model { Diode, Transistor };
+    enum class Mode { LowPass = 0, BandPass, HighPass };   // mixes of the ladder's stage outputs
 
     void prepare (double sampleRate) noexcept;
     void reset() noexcept;
     void setModel (Model m) noexcept;
     Model getModel() const noexcept { return model; }
+    void setMode (Mode m) noexcept  { mode = m; }
 
     /** cutoffHz = where the resonant peak sits, resonance 0..1. */
     float process (float x, float cutoffHz, float resonance) noexcept;
@@ -33,6 +35,7 @@ public:
 private:
     double sr = 88200.0;
     Model model = Model::Diode;
+    Mode mode = Mode::LowPass;
     float s[4] {};          // integrator states
     float hpState = 0.0f;   // feedback high-pass (diode model)
     float hpG = 0.0f;

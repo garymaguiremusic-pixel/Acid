@@ -31,7 +31,8 @@ AcidAudioProcessor::AcidAudioProcessor()
     P.tubeOn = get (tubeOn);         P.wave = get (wave);            P.retro = get (retro);
     P.cutoffLow = get (cutoffLow);   P.cutoff = get (cutoff);        P.resonance = get (resonance);
     P.transistor = get (transistor); P.bass = get (bass);
-    P.filterVelLink = get (filterVelLink); P.filterVelAmount = get (filterVelAmount);            P.treble = get (treble);
+    P.filterVelLink = get (filterVelLink); P.filterVelAmount = get (filterVelAmount);
+    P.filterMode = get (filterMode); P.oscALock = get (oscALock); P.oscBLock = get (oscBLock);            P.treble = get (treble);
     P.drive = get (drive);           P.envMod = get (envMod);        P.decay = get (decay);
     P.accent = get (accent);         P.envAttack = get (envAttack);
     P.accDecay = get (accDecay);     P.accSweep = get (accSweep);    P.slideTime = get (slideTime);
@@ -209,6 +210,8 @@ as::arp::RandomiseSettings AcidAudioProcessor::readRandomiseSettings() const
     r.lockReverse        = true;
     r.accentProbability  = value (rndAccent) * 0.01f;
     r.lockAccents        = value (rndLockAccent) > 0.5f;
+    r.glideProbability   = value (rndGlide) * 0.01f;
+    r.lockGlides         = value (rndLockGlide) > 0.5f;
     r.fileNotes          = value (rndFileNotes) > 0.5f;
     r.scaleLock          = value (ParamIDs::scaleLock) > 0.5f;
     r.scaleKey           = roundToInt (value (ParamIDs::scaleKey));
@@ -439,6 +442,9 @@ void AcidAudioProcessor::updateSettings() noexcept
     v.accSweep        = norm100 (P.accSweep->load());
     v.drive           = norm100 (P.drive->load());
     v.transistor      = P.transistor->load() > 0.5f;
+    v.filterMode      = roundToInt (P.filterMode->load());
+    v.oscALock        = P.oscALock->load() > 0.5f;
+    v.oscBLock        = P.oscBLock->load() > 0.5f;
     v.velLink         = P.filterVelLink->load() > 0.5f;
     v.velAmount       = norm100 (P.filterVelAmount->load());
     v.oscBLevel       = norm100 (P.oscBLevel->load());
@@ -594,7 +600,7 @@ void AcidAudioProcessor::applyArpEvent (const as::arp::NoteEvent& e) noexcept
             // a tie: glide to the new pitch over the Glide time, without retriggering
             if (e.id == voiceArpId)
             {
-                voice.noteOn (e.note, e.accent, true, level, filterVelocity);
+                voice.noteOn (e.note, e.accent, true, level, filterVelocity, e.glide);   // Glide slides, Tie jumps
                 gui.lastVelocity.store (laneVelocity);
             }
             break;
@@ -861,6 +867,11 @@ void AcidAudioProcessor::pushTubeUndo()
 void AcidAudioProcessor::generateTube()
 {
     pushTubeUndo();
+    randomiseTubeSettings();
+}
+
+void AcidAudioProcessor::randomiseTubeSettings()
+{
     Random r;
     auto range = [&r] (float lo, float hi) { return lo + (hi - lo) * r.nextFloat(); };
     auto weighted = [&r] (float lo, float hi, float bias) { return lo + (hi - lo) * std::pow (r.nextFloat(), bias); };
@@ -885,6 +896,119 @@ void AcidAudioProcessor::generateTube()
     setParameterValue (tubeCharacter, std::round (range (0.0f, 80.0f)));
     setParameterValue (tubeMix, std::round (range (60.0f, 100.0f)));
     setParameterValue (tubeOutput, std::round (range (-6.0f, 0.0f)));
+}
+
+//==============================================================================
+// Randomise Patch (header): the sound, within musical ranges, with undo
+//==============================================================================
+bool AcidAudioProcessor::isPatchParameter (const String& id)
+{
+    using namespace ParamIDs;
+    // the pattern / arp settings, the randomiser and export settings, the level, tuning and
+    // the Echo / Tube on-off switches are not part of the patch
+    if (id.startsWith ("rnd") || id.startsWith ("export") || id.startsWith ("arp") || id.startsWith ("seq")
+        || id.startsWith ("scale"))
+        return false;
+    for (auto* other : { volume, tune, echoOn, tubeOn, velMode, ParamIDs::bpm, autoPlay, midiOut })
+        if (id == other)
+            return false;
+    return true;
+}
+
+std::vector<std::pair<String, float>> AcidAudioProcessor::capturePatch() const
+{
+    std::vector<std::pair<String, float>> values;
+    for (auto* param : getParameters())
+        if (auto* ranged = dynamic_cast<RangedAudioParameter*> (param); ranged != nullptr && isPatchParameter (ranged->getParameterID()))
+            values.emplace_back (ranged->getParameterID(), ranged->convertFrom0to1 (ranged->getValue()));
+    return values;
+}
+
+void AcidAudioProcessor::undoRandomPatch()
+{
+    if (patchUndo.empty())
+        return;
+    for (auto& [id, value] : patchUndo.back())
+        setParameterValue (id, value);
+    patchUndo.pop_back();
+}
+
+void AcidAudioProcessor::randomisePatch()
+{
+    patchUndo.push_back (capturePatch());
+    if (patchUndo.size() > 32)
+        patchUndo.erase (patchUndo.begin());
+
+    using namespace ParamIDs;
+    Random r;
+    auto range = [&r] (float lo, float hi) { return std::round (lo + (hi - lo) * r.nextFloat()); };
+    auto chance = [&r] (float p) { return r.nextFloat() < p; };
+    auto set = [this] (const String& id, float v) { setParameterValue (id, v); };
+
+    // oscillator
+    set (wave, chance (0.4f) ? 1.0f : 0.0f);
+    set (retro, chance (0.25f) ? 1.0f : 0.0f);
+    set (oscALock, chance (0.35f) ? 1.0f : 0.0f);
+
+    // filter: mostly the classic low-pass, the diode ladder more often than not
+    const float mode = r.nextFloat();
+    set (filterMode, mode < 0.72f ? 0.0f : (mode < 0.86f ? 1.0f : 2.0f));
+    set (transistor, chance (0.25f) ? 1.0f : 0.0f);
+    set (cutoff, range (22.0f, 58.0f));
+    set (cutoffLow, range (10.0f, 50.0f));
+    set (resonance, range (45.0f, 90.0f));
+    set (drive, range (0.0f, 55.0f));
+    set (bass, range (-3.0f, 6.0f));
+    set (treble, range (-4.0f, 4.0f));
+    set (filterVelLink, chance (0.3f) ? 1.0f : 0.0f);
+    set (filterVelAmount, range (20.0f, 80.0f));
+
+    // envelope / accent / glide
+    set (envMod, range (30.0f, 85.0f));
+    set (decay, range (20.0f, 70.0f));
+    set (accent, range (40.0f, 90.0f));
+    set (envAttack, range (30.0f, 60.0f));
+    set (accDecay, range (15.0f, 55.0f));
+    set (accSweep, range (0.0f, 80.0f));
+    set (slideTime, range (40.0f, 120.0f));
+
+    // layers
+    set (oscBLevel, chance (0.4f) ? range (10.0f, 55.0f) : 0.0f);
+    static const float oscBTunes[] = { 0.0f, 0.0f, -12.0f, 12.0f, 7.0f, -5.0f };
+    set (oscBTune, oscBTunes[r.nextInt (6)]);
+    set (oscBDetune, range (-15.0f, 15.0f));
+    set (oscBLock, chance (0.35f) ? 1.0f : 0.0f);
+    set (unisonVoices, chance (0.7f) ? 1.0f : range (2.0f, 5.0f));
+    set (unisonSpread, range (10.0f, 60.0f));
+    set (ampAttack, range (5.0f, 20.0f));
+    set (ampDecay, chance (0.6f) ? 100.0f : range (55.0f, 95.0f));
+    set (ampRelease, range (10.0f, 35.0f));
+
+    // echo: synced, short to medium
+    set (echoSync, 1.0f);
+    static const int echoDivs[] = { 5, 7, 8, 10, 11 };     // 1/16, 1/16., 1/8, 1/8., 1/4
+    set (echoTime, knobForDivision (echoDivs[r.nextInt (5)], (int) echoDivisions().size()));
+    set (echoMix, range (0.0f, 35.0f));
+    set (echoFeedback, range (20.0f, 70.0f));
+    set (echoLowCut, range (20.0f, 50.0f));
+    set (echoHighCut, range (30.0f, 70.0f));
+    set (echoWidth, range (40.0f, 100.0f));
+
+    // LFOs: each one on about half the time, mostly on the cutoff
+    for (int i = 0; i < 2; ++i)
+    {
+        const bool on = chance (0.5f);
+        set (lfo (i, "Depth"), on ? (chance (0.8f) ? 1.0f : -1.0f) * range (10.0f, 40.0f) : 0.0f);
+        set (lfo (i, "Dest"), chance (0.7f) ? (float) DestCutoff : (float) r.nextInt (NumLfoDests));
+        set (lfo (i, "Shape"), (float) r.nextInt (lfoShapeNames().size()));
+        set (lfo (i, "Sync"), 1.0f);
+        static const int lfoDivs[] = { 3, 4, 7, 10, 13 };    // 1/1, 1/2, 1/4, 1/8, 1/16
+        set (lfo (i, "Rate"), knobForDivision (lfoDivs[r.nextInt (5)], (int) lfoDivisions().size()));
+        set (lfo (i, "Retrig"), (float) r.nextInt (3));
+    }
+
+    randomiseTubeSettings();
+    presets.setCurrentName ("Random");
 }
 
 void AcidAudioProcessor::initTube()

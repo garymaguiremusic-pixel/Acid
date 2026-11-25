@@ -49,6 +49,7 @@ private:
     juce::TextButton presetPrev { juce::CharPointer_UTF8 ("\xe2\x97\x80") }, presetNext { juce::CharPointer_UTF8 ("\xe2\x96\xb6") };
     HelpDisplay display;
     juce::TextButton echoButton { "Echo" }, tubeButton { "Tube" }, themeButton { "DARK" };
+    juce::TextButton randomPatchButton { "RANDOM" }, undoPatchButton { "UNDO" };
     AcidKnob tuneKnob { AcidKnob::Size::Small, "Tune" }, volumeKnob { AcidKnob::Size::Small, "Volume" };
 
     // pages

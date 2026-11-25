@@ -40,18 +40,18 @@ step sequencer. Acid's **Glide** stays: it's in the Step Sequencer panel.
 
 | Section | Controls |
 |---|---|
-| **Osc** | Wave (Saw / Square, the square shaped from the saw 303-style), wave display, **Retro** (slow pitch drift, per-note variation, softer top end) |
-| **Filter** | **Cutoff** and **Resonance** (large), **Cutoff Low** (the floor the envelope falls back to), Drive, Bass, Treble, **Transistor** (diode ladder by default, or a transistor ladder). **Velocity**: **Vel Link** ties the cutoff to velocity, **Vel Amt** sets how far (see below) |
+| **Osc** | Wave (Saw / Square, the square shaped from the saw 303-style), wave display, **Retro** (slow pitch drift, per-note variation, softer top end), **Phase Lock** (every note starts the wave at the same point) |
+| **Filter** | **Cutoff** with **LP / BP / HP** beside it (low-pass, band-pass, high-pass, all from the same ladder, resonance in every type), **Resonance**, **Cutoff Low** (the floor the envelope falls back to), Drive, Bass, Treble, **Transistor** (diode ladder by default, or a transistor ladder). **Velocity**: **Vel Link** ties the cutoff to velocity, **Vel Amt** sets how far (see below) |
 | **Envelope** | Env Mod, Decay, Accent, Env Attack, Acc Decay, **Acc Sweep** (consecutive accents build the cutoff up), live ENV / ACC meter |
 | **Arpeggiator** | Arp On, Mode (Up, Down, Up/Down, Up/Down2, Down/Up, Down/Up2, Random, Ordered, **Step**, Chord), Octave 1-4, Time (1/2-1/32, Straight / Triplet / Dotted), Gate 1-200 %, Swing -100 to +100 %, Velocity mode (Key, Hold, Step, Step+Key, Step+Hold), **Auto Play**, **MIDI Out**, Tempo (host, or the internal BPM) |
-| **Randomise** | Randomise / Undo, Density, Range, Tie, Ratch, Acc, Vel Lo, Vel Hi, Lock Pitch / Vel / Rests / Ties / Ratch / Acc, **Scale Lock** with Key and 16 scales, **File Notes**, **Drag MIDI** with length (1-8 bars), root and chord |
+| **Randomise** | Randomise / Undo, Density, Range, Glide, Tie, Ratch, Acc, Vel Lo, Vel Hi, Lock Pitch / Vel / Rests / Glide / Ties / Ratch / Acc, **Scale Lock** with Key and 16 scales, **File Notes**, **Drag MIDI** with length (1-8 bars), root and chord |
 | **Sequence** strip | The MIDI or audio file the steps came from, favourite star, previous / next file, **Browse** (the Sequence Browser: folders, favourites, tags and search; each file you pick loads into the steps in your Key / Scale) |
-| **Step Sequencer** | Length 16 / 32, End, **Glide**, Undo / Redo, Clear, Import (a MIDI file, or the notes of an audio file; or drop a file on the grid). Lanes: **Volume** (bottom = rest), **Velocity**, **Transpose**, **Ratchet** (1-4 hits), **Accent**, **Tie** |
+| **Step Sequencer** | Length 16 / 32, End, **Glide**, Undo / Redo, Clear, Import (a MIDI file, or the notes of an audio file; or drop a file on the grid). Lanes: **Volume** (bottom = rest), **Velocity**, **Transpose**, **Ratchet** (1-4 hits), **Accent**, **Glide** (a button per step, like the first Acid sequencer's slide row), **Tie** |
 
 ### Layers
 ![Layers page](docs/screenshot-layers.png)
 
-Osc B (level, tune, detune) · Unison (1-8 voices, spread, free / reset phase) ·
+Osc B (level, tune, detune, **Phase Lock**) · Unison (1-8 voices, spread, free / reset phase) ·
 Amp envelope (attack, decay or hold, release) · **Echo** (sync, time, mix, feedback,
 low cut and high cut inside the loop, ping-pong width) · **2 LFOs** (rate free or
 synced, depth +-, phase, 7 shapes, sync, mirror, retrigger Free / Note / Bar,
@@ -67,7 +67,9 @@ Output and Mix. **Generate Distortion** randomises the settings, with Undo / Ini
 In the band graph, drag the edges for the frequencies and the centres for the gains.
 
 ### Header
-Save, Clear (sound back to default, the pattern stays), the preset display (‹ ›, click it
+Save, Clear (sound back to default, the pattern stays), **RANDOM** (a new patch: oscillators,
+filter, envelope, glide time, layers, echo, LFOs and tube, within musical ranges; the pattern,
+arp settings, volume and Echo / Tube switches stay) with **UNDO**, the preset display (‹ ›, click it
 to browse the 20 factory presets and your user presets), Echo / Tube on-off, Dark / Light
 theme, Tune and Volume. Hover over any control to see its value and a short explanation in
 the display.
@@ -84,8 +86,9 @@ step). Double-click resets to the default. The window (1000 x 900 at 100 %) resi
   over while you hold it.
 * Acid is monophonic: each new step retriggers the voice, and the newest note wins (in
   Chord mode, the top note).
-* **Tie** holds the step into the next one without retriggering. A tie to a new pitch
-  **glides** there over the **Glide** time, which is the 303 slide.
+* **Glide** (the button row) holds the step into the next one and **slides** to its pitch
+  over the **Glide** time: the 303 slide. **Tie** holds into the next step without
+  retriggering and without sliding (the pitch changes straight away).
 * **Accent** plays at full velocity and fires Acid's accent: louder, with the filter kick
   and the **Acc Sweep** build-up.
 * Loudness is the note's velocity (from the Velocity mode) times the step's **Volume**.
@@ -94,8 +97,8 @@ step). Double-click resets to the default. The window (1000 x 900 at 100 %) resi
   **Velocity** lane, in every velocity mode. So you can keep the loudness on the keys and use
   the lane purely for filter movement. With the arp off it follows the keys you play.
   Velocity 127 leaves the cutoff where it is; lower velocities close it, by up to 4 octaves
-  at 100 % Vel Amt. A tied step slides its cutoff to the new value over the Glide time,
-  together with the pitch.
+  at 100 % Vel Amt. A held step (Glide or Tie) moves its cutoff to the new value over the
+  Glide time.
 * **MIDI Out** sends the notes (the Velocity lane as velocity, the Volume lane as CC11) to
   drive another instrument. **Drag MIDI** renders the same notes into a clip.
 * With **Arp On** off, MIDI plays the synth directly. Last-note priority; overlapping notes

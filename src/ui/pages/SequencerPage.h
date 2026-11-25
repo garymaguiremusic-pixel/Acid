@@ -33,9 +33,9 @@ private:
     AcidKnob densityKnob { AcidKnob::Size::Small, "Density" }, rangeKnob { AcidKnob::Size::Small, "Range" },
              tieKnob { AcidKnob::Size::Small, "Tie" }, ratchetKnob { AcidKnob::Size::Small, "Ratch" },
              accentKnob { AcidKnob::Size::Small, "Acc" }, velLoKnob { AcidKnob::Size::Small, "Vel Lo" },
-             velHiKnob { AcidKnob::Size::Small, "Vel Hi" };
+             velHiKnob { AcidKnob::Size::Small, "Vel Hi" }, glideKnob { AcidKnob::Size::Small, "Glide" };
     juce::TextButton lockPitchButton { "Pitch" }, lockVelButton { "Vel" }, lockRestButton { "Rests" }, lockTieButton { "Ties" },
-                     lockRatchetButton { "Ratch" }, lockAccentButton { "Acc" };
+                     lockRatchetButton { "Ratch" }, lockAccentButton { "Acc" }, lockGlideButton { "Glide" };
     juce::TextButton scaleLockButton { "Scale Lock" }, fileNotesButton { "File Notes" };
     juce::ComboBox keyBox, scaleBox;
     DragMidiHandle dragMidi;

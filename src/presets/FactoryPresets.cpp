@@ -52,13 +52,13 @@ namespace
                 s.transpose = std::clamp (a.note + 12 * a.octave, -24, 24);
             }
             s.volume = 127;
-            s.tie = a.slide;      // a slide glides into the next step: the sequencer's Tie
+            s.glide = a.slide;    // a slide glides into the next step: the sequencer's Glide lane
         }
 
         // a slide into a rest doesn't glide anywhere
         for (int i = 0; i < n; ++i)
-            if (out.pattern.steps[(size_t) i].tie && (i + 1 >= n || out.pattern.steps[(size_t) i + 1].isRest()))
-                out.pattern.steps[(size_t) i].tie = false;
+            if (out.pattern.steps[(size_t) i].glide && (i + 1 >= n || out.pattern.steps[(size_t) i + 1].isRest()))
+                out.pattern.steps[(size_t) i].glide = false;
         return out;
     }
 }

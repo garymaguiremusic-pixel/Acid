@@ -13,10 +13,11 @@ namespace as::arp
         float ratchetProbability = 0.0f; // chance an active step gets 2-4 ratchets
         float reverseProbability = 0.0f; // chance an active step plays the sample backwards
         float accentProbability = 0.0f;  // chance an active step is accented
+        float glideProbability = 0.0f;   // Acid: chance an active step glides (slides) into the next
         int velocityMin = 60, velocityMax = 127;
         bool lockPitch = false, lockVelocity = false, lockRests = false, lockTies = false, lockRatchets = false,
              lockReverse = false,
-             lockAccents = false;
+             lockAccents = false, lockGlides = false;
         bool scaleLock = false;
         bool fileNotes = false;          // pick pitches only from the pattern's note pool (the imported file's notes)
         int scaleKey = 0, scaleIndex = 0;

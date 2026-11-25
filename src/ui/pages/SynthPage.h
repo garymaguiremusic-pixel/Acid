@@ -2,6 +2,7 @@
 
 #include "PageBase.h"
 #include "SequencerPage.h"
+#include "../arp/Controls.h"
 
 class SynthPage : public PageBase
 {
@@ -13,7 +14,7 @@ public:
 
 private:
     // OSC
-    juce::TextButton waveButton { "SAW" }, retroButton { "Retro" };
+    juce::TextButton waveButton { "SAW" }, retroButton { "Retro" }, lockButton { "Phase Lock" };
     WaveDisplay waveDisplay;
 
     // FILTER
@@ -22,6 +23,7 @@ private:
     AcidKnob bassKnob { AcidKnob::Size::Small, "Bass" }, trebleKnob { AcidKnob::Size::Small, "Treble" };
     juce::TextButton transistorButton { "Transistor" };
     InfoLcd cutoffLcd, resoLcd;
+    SegmentedButtons filterModeButtons;     // LP / BP / HP, beside the cutoff
 
     // FILTER > VELOCITY: velocity (the sequencer's Velocity lane) moves the cutoff
     juce::TextButton velLinkButton { "Vel Link" };

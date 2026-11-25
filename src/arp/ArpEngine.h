@@ -31,6 +31,7 @@ namespace as::arp
         int volume = 127;      // the step's Volume (scales loudness on top of velocity)
         int stepVelocity = 100; // the step's Velocity lane (drives the filter's velocity link)
         bool accent = false;    // the step's Accent: full velocity, filter opens further
+        bool glide = false;     // Change events: slide to the new pitch (Glide) rather than jump (Tie)
     };
 
     /** Fixed-capacity, time-sorted event list (no allocation on the audio thread). */
@@ -145,6 +146,7 @@ namespace as::arp
         {
             bool sounding = false;   // a note started on this slot and hasn't been stopped
             bool awaitingTie = false;
+            bool glideInto = false;  // the hold into the next step is a Glide (slide), not a Tie
             bool legato = false;
             int id = 0;
             int note = 0;

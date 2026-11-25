@@ -59,6 +59,13 @@ AcidPanel::AcidPanel (AcidAudioProcessor& p)
     setHelp (themeButton, "THEME  -  switch between the dark and the light colours");
     addAndMakeVisible (themeButton);
 
+    randomPatchButton.onClick = [this] { processor.randomisePatch(); };
+    setHelp (randomPatchButton, "RANDOM  -  a new patch: oscillators, filter, envelope, layers, echo, LFOs and tube, in musical ranges (the pattern stays)");
+    undoPatchButton.onClick = [this] { processor.undoRandomPatch(); };
+    setHelp (undoPatchButton, "UNDO  -  back to the patch before the last Random");
+    addAndMakeVisible (randomPatchButton);
+    addAndMakeVisible (undoPatchButton);
+
     const std::pair<AcidKnob*, const char*> headerKnobs[] = { { &tuneKnob, ParamIDs::tune }, { &volumeKnob, ParamIDs::volume } };
     for (auto [knob, id] : headerKnobs)
     {
@@ -136,6 +143,8 @@ void AcidPanel::resized()
     echoButton.setBounds (636, 8, 80, 20);
     tubeButton.setBounds (636, 31, 80, 20);
     themeButton.setBounds (724, 8, 70, 20);
+    randomPatchButton.setBounds (724, 31, 70, 20);
+    undoPatchButton.setBounds (798, 31, 50, 20);
     tuneKnob.setBounds (852, 2, 64, 54);
     volumeKnob.setBounds (924, 2, 64, 54);
 
@@ -395,6 +404,8 @@ void AcidPanel::timerCallback()
         lastPresetVersion = pv;
         display.setPreset (processor.presets.getCurrentBank(), processor.presets.getCurrentName());
     }
+
+    undoPatchButton.setEnabled (processor.canUndoRandomPatch());
 
     // keep the help text live while a value changes under the mouse
     if (hovered != nullptr)

@@ -16,6 +16,7 @@ namespace as::arp
         const Identifier ratchet   { "ratchet" };
         const Identifier reverse   { "reverse" };
         const Identifier accentID  { "accent" };
+        const Identifier glideID   { "glide" };
         const Identifier volume    { "volume" };
         const Identifier keyID     { "key" };
         const Identifier scaleID   { "scale" };
@@ -147,6 +148,8 @@ namespace as::arp
                 step.setProperty (reverse, true, nullptr);
             if (s.accent)
                 step.setProperty (accentID, true, nullptr);
+            if (s.glide)
+                step.setProperty (glideID, true, nullptr);
             tree.appendChild (step, nullptr);
         }
         return tree;
@@ -177,6 +180,7 @@ namespace as::arp
                 s.ratchet   = jlimit (1, kMaxRatchet, (int) step.getProperty (ratchet, 1));
                 s.reverse   = (bool) step.getProperty (reverse, false);
                 s.accent    = (bool) step.getProperty (accentID, false);
+                s.glide     = (bool) step.getProperty (glideID, false);
 
                 if (step.hasProperty (volume))
                 {

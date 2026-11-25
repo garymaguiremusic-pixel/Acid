@@ -78,6 +78,21 @@ playable acid sound.
   Tie to a new pitch glides over it.
 - The synth and the sequencer share one page ("Synth / Seq"), so the window base size is
   1000 x 900.
+- **Glide lane** (Acid addition to the ArpSampler lanes): a per-step button like the first
+  Acid sequencer's slide row. Glide and Tie both hold into the next step; Glide slides the
+  pitch over the Glide time, Tie changes it straight away (in ArpSampler a tie to a new
+  pitch glides; here that is what Glide is for). Factory presets and older projects turn
+  their slides into Glide, imported overlapping notes become Glide, and Randomise has a
+  Glide probability and lock.
+- **Filter types**: LP / BP / HP are mixes of the ladder's stage outputs (LP4, LP2xHP2,
+  HP4 for the transistor ladder; y2 - 3 y3 + 2 y4 for the diode ladder's band-pass, which
+  peaks at the cutoff), so resonance works in every type. Gains are trimmed so each type
+  plays at about the low-pass level.
+- **Phase Lock** (Osc A, Osc B): the oscillator restarts at the same phase on every new
+  (non-slid) note; Osc A's unison voices keep their fixed spread of start phases.
+- **Randomise Patch** (header): sound parameters only, within musical ranges (mostly the
+  diode low-pass, about half the LFOs on, synced echo). The pattern, arp settings, randomiser
+  and export settings, volume, tune and the Echo / Tube switches stay. Undo keeps 32 steps.
 - Acid is monophonic: Start events retrigger the voice, Change events (ties) glide without
   retriggering, and a Stop only ends the note that still owns the voice. In Chord mode the
   newest (top) note plays.
