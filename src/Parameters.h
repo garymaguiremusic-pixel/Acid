@@ -1,0 +1,144 @@
+#pragma once
+
+#include <juce_audio_processors/juce_audio_processors.h>
+#include <cmath>
+#include <vector>
+
+//==============================================================================
+// Parameter IDs, choice lists, the knob -> real-unit mappings and the hover-help
+// text. Every knob moves in steps of 1.0 (mouse wheel: one step per notch); where
+// a real unit fits whole steps (semitones, dB, %, ms) the parameter uses that unit
+// directly, otherwise it runs 0..100 and is mapped to real units here.
+// IDs are stable: never rename one once it has shipped.
+//==============================================================================
+namespace acid
+{
+inline constexpr int kStateVersion = 1;
+
+namespace ParamIDs
+{
+    // Header
+    inline constexpr auto tune        = "tune";
+    inline constexpr auto volume      = "volume";
+    inline constexpr auto echoOn      = "echoOn";
+    inline constexpr auto tubeOn      = "tubeOn";
+
+    // Synth page
+    inline constexpr auto wave        = "wave";
+    inline constexpr auto retro       = "retro";
+    inline constexpr auto cutoffLow   = "cutoffLow";
+    inline constexpr auto cutoff      = "cutoff";
+    inline constexpr auto resonance   = "resonance";
+    inline constexpr auto transistor  = "transistor";
+    inline constexpr auto bass        = "bass";
+    inline constexpr auto treble      = "treble";
+    inline constexpr auto drive       = "drive";
+    inline constexpr auto envMod      = "envMod";
+    inline constexpr auto decay       = "decay";
+    inline constexpr auto accent      = "accent";
+    inline constexpr auto gate        = "gate";
+    inline constexpr auto envAttack   = "envAttack";
+    inline constexpr auto accDecay    = "accDecay";
+    inline constexpr auto accSweep    = "accSweep";
+
+    // Sequencer
+    inline constexpr auto seqOn       = "seqOn";
+    inline constexpr auto keyMode     = "keyMode";
+    inline constexpr auto seqRate     = "seqRate";
+    inline constexpr auto swing       = "swing";
+    inline constexpr auto slideTime   = "slideTime";
+    inline constexpr auto direction   = "direction";
+    inline constexpr auto transpose   = "transpose";
+    inline constexpr auto pattern     = "pattern";
+
+    // Layers page
+    inline constexpr auto oscBLevel   = "oscBLevel";
+    inline constexpr auto oscBTune    = "oscBTune";
+    inline constexpr auto oscBDetune  = "oscBDetune";
+    inline constexpr auto unisonVoices = "unisonVoices";
+    inline constexpr auto unisonSpread = "unisonSpread";
+    inline constexpr auto unisonFree  = "unisonFree";
+    inline constexpr auto ampAttack   = "ampAttack";
+    inline constexpr auto ampDecay    = "ampDecay";
+    inline constexpr auto ampRelease  = "ampRelease";
+    inline constexpr auto echoSync    = "echoSync";
+    inline constexpr auto echoTime    = "echoTime";
+    inline constexpr auto echoMix     = "echoMix";
+    inline constexpr auto echoFeedback = "echoFeedback";
+    inline constexpr auto echoLowCut  = "echoLowCut";
+    inline constexpr auto echoHighCut = "echoHighCut";
+    inline constexpr auto echoWidth   = "echoWidth";
+
+    // LFO 1 / 2: "lfo1Rate", "lfo2Rate" ...
+    inline juce::String lfo (int index, const char* name) { return "lfo" + juce::String (index + 1) + name; }
+
+    // Tube page
+    inline constexpr auto tubeEdgeLow  = "tubeEdgeLow";
+    inline constexpr auto tubeXover1   = "tubeXover1";
+    inline constexpr auto tubeXover2   = "tubeXover2";
+    inline constexpr auto tubeEdgeHigh = "tubeEdgeHigh";
+    inline constexpr auto tubeResonator = "tubeResonator";
+    inline constexpr auto tubeCharacter = "tubeCharacter";
+    inline constexpr auto tubeInput    = "tubeInput";
+    inline constexpr auto tubeOutput   = "tubeOutput";
+    inline constexpr auto tubeMix      = "tubeMix";
+
+    // Bands 0..2: "tubeLowDrive", "tubeMidGain", "tubeHighSolo" ...
+    inline juce::String band (int index, const char* name)
+    {
+        static const char* names[] = { "Low", "Mid", "High" };
+        return juce::String ("tube") + names[index] + name;
+    }
+}
+
+//==============================================================================
+// Choice lists
+inline juce::StringArray waveNames()       { return { "Saw", "Square" }; }
+inline juce::StringArray seqRateNames()    { return { "1/8", "1/16", "1/16 T", "1/32" }; }
+inline juce::StringArray directionNames()  { return { "Forward", "Reverse", "Ping-Pong", "Random" }; }
+inline juce::StringArray lfoShapeNames()   { return { "Sine", "Triangle", "Saw Up", "Saw Down", "Square", "S&H", "Smooth Random" }; }
+inline juce::StringArray lfoShapeShort()   { return { "SINE", "TRI", "SAW UP", "SAW DN", "SQUARE", "S&H", "SMOOTH" }; }
+inline juce::StringArray lfoRetrigNames()  { return { "Free", "Note", "Bar" }; }
+inline juce::StringArray lfoDestNames()    { return { "Cutoff", "Pitch", "Wave", "Reso", "Volume" }; }
+
+enum LfoDest { DestCutoff = 0, DestPitch, DestWave, DestReso, DestVolume, NumLfoDests };
+
+//==============================================================================
+// Knob -> real units
+inline float expMap (float v, float lo, float hi)   { return lo * std::pow (hi / lo, juce::jlimit (0.0f, 100.0f, v) / 100.0f); }
+inline float norm100 (float v)                      { return juce::jlimit (0.0f, 100.0f, v) / 100.0f; }
+
+inline float cutoffToHz (float v)       { return expMap (v, 20.0f, 20000.0f); }
+inline float decayToMs (float v)        { return expMap (v, 30.0f, 3000.0f); }
+inline float envAttackToMs (float v)    { return expMap (v, 0.3f, 30.0f); }
+inline float ampAttackToMs (float v)    { return expMap (v, 0.1f, 100.0f); }
+inline bool  ampDecayHolds (float v)    { return v >= 99.5f; }
+inline float ampDecayToMs (float v)     { return expMap (v, 10.0f, 10000.0f); }
+inline float ampReleaseToMs (float v)   { return expMap (v, 1.0f, 1000.0f); }
+inline float echoFreeMs (float v)       { return expMap (v, 10.0f, 2000.0f); }
+inline float echoFeedbackGain (float v) { return norm100 (v) * 0.95f; }
+inline float echoLowCutHz (float v)     { return expMap (v, 20.0f, 2000.0f); }
+inline float echoHighCutHz (float v)    { return expMap (v, 1000.0f, 20000.0f); }
+inline float lfoFreeHz (float v)        { return expMap (v, 0.05f, 20.0f); }
+
+/** Tempo divisions: name and length in quarter notes. */
+struct Division { const char* name; double beats; };
+const std::vector<Division>& echoDivisions();
+const std::vector<Division>& lfoDivisions();
+int divisionIndex (float knobValue, int numDivisions);
+float knobForDivision (int index, int numDivisions);
+
+juce::String formatHz (float hz);
+juce::String formatMs (float ms);
+juce::String formatNumber (double v);
+
+//==============================================================================
+/** Display text (with units) for a parameter value, used by the host, the knobs'
+    hover text and the help display. */
+juce::String describeParameter (const juce::String& id, float value);
+
+/** One-line explanation of a parameter for the hover help. */
+juce::String helpForParameter (const juce::String& id);
+
+juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
+} // namespace acid
