@@ -114,7 +114,7 @@ const std::vector<FactoryPreset>& factoryPresets()
               { "cutoff", 36 }, { "resonance", 70 }, { "tubeLowDrive", 50 }, { "volume", -4 } },
           { kRoller, kOctaves } },
         { "Transistor Scream", "ACID",
-          P { { "transistor", 1 }, { "cutoff", 42 }, { "resonance", 80 }, { "envMod", 60 }, { "drive", 35 }, { "volume", -9 } },
+          P { { "transistor", 1 }, { "cutoff", 42 }, { "resonance", 80 }, { "envMod", 60 }, { "drive", 35 }, { "volume", -12 } },
           { kRoller2, kHard } },
         { "Retro Box", "CLASSIC",
           P { { "retro", 1 }, { "cutoff", 41 }, { "resonance", 72 }, { "drive", 5 }, { "echoOn", 0 } },

@@ -74,6 +74,7 @@ private:
     DelayLine cleanDelay[2], dryDelay[2];
     Smoother activeFade, mixSmooth, inGain, outGain, bandGain[3];
     float bandLevel[3] {}, levelCoef = 0.001f;
+    float bandMakeup[3] { 1.0f, 1.0f, 1.0f };
     float lastEdges[4] {};
 };
 } // namespace acid

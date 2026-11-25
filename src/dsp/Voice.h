@@ -59,7 +59,7 @@ public:
     static constexpr float kEnvModOctaves = 5.0f;
     static constexpr float kAccentOctaves = 2.5f;
     static constexpr int kBaseNote = 36;          // C2: the lowest note of a pattern at octave 0
-    static constexpr float kOutputTrim = 1.5f;    // output level (headroom for the tube and echo)
+    static constexpr float kOutputTrim = 0.9f;    // output level (headroom for the tube and echo)
 
     void prepare (double sampleRate);
     void reset();

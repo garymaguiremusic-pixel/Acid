@@ -57,12 +57,13 @@ playable acid sound.
   already covers inverting.
 - **LFO depth ranges**: Cutoff +-4 octaves, Pitch +-12 semitones, Wave +-full morph,
   Reso +-full range, Volume = tremolo down to silence at 100 %.
-- **Tube**: the wet path is scaled to about unity at the default drive, and more drive
-  adds saturation rather than mostly level. The tube curve is the spec's biased tanh,
+- **Tube**: each band is divided by the square root of its tube's small-signal gain,
+  so zero drive is unity and more drive adds mostly saturation with a moderate rise
+  in level. The tube curve is the spec's biased tanh,
   normalised so +-1 in gives about +-1 out. Bypassing keeps the oversampling latency
   (the dry path is delayed to match), so the host's delay compensation never changes.
 - **Output**: a gentle safety soft-clip above about -2 dBFS on the master. Factory
-  presets peak around -9 to -6 dBFS.
+  presets peak around -7 to -5 dBFS.
 - **Latency** reported to the host: 15 samples (voice oversampling) + 19 samples (tube
   oversampling).
 

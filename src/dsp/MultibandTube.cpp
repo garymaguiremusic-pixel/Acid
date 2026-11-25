@@ -93,6 +93,18 @@ void MultibandTube::setSettings (const TubeSettings& s)
                 ch[b].resonator.setBandpass (centres[b], 1.5f + 4.0f * s.resonator, sr);
     }
 
+    // The tube curve's small-signal gain grows with drive (about 1x at 0, 30x at
+    // full). Dividing by its square root keeps zero drive at unity and lets more drive
+    // mean mostly more saturation, with a moderate level rise.
+    for (int b = 0; b < 3; ++b)
+    {
+        const float g = 0.3f + 24.0f * s.drive[b] * s.drive[b];
+        const float bias = 0.85f * s.character;
+        const float tb = std::tanh (bias);
+        const float smallSignalGain = g * (1.0f - tb * tb) / (std::tanh (g + bias) - tb);
+        bandMakeup[b] = 1.0f / std::sqrt (smallSignalGain);
+    }
+
     activeFade.setTarget (s.active ? 1.0f : 0.0f);
     mixSmooth.setTarget (clampf (s.mix, 0.0f, 1.0f));
     inGain.setTarget (dbToGain (s.inputDb));
@@ -126,10 +138,7 @@ void MultibandTube::process (float* left, float* right, int numSamples) noexcept
             float wet = 0.0f;
             for (int b = 0; b < 3; ++b)
             {
-                // The tube curve has ~3x small-signal gain at the default drive: scale the
-                // wet path to about unity there, and let more drive mean more saturation
-                // rather than just more level.
-                const float makeup = 0.33f / (1.0f + 1.6f * set.drive[b] * set.drive[b]);
+                const float makeup = bandMakeup[b];
                 const float y = bands[c][b].process (regions[FiveWaySplit::Low + b], set.drive[b], set.character, set.resonator) * bg[b] * makeup;
                 if (! anySolo || set.solo[b])
                     wet += y;
