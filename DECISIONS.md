@@ -4,9 +4,13 @@ Choices made where the spec left room. In each case the aim was an authentic,
 playable acid sound.
 
 ## Build and format
-- **Windows only, VST3 only** for now (as requested). The CMake file still has an
-  optional Standalone target (`-DACID_BUILD_STANDALONE=ON`) for local testing; AU is
-  left out.
+- **Windows**: VST3. **macOS**: VST3 + AU, universal (arm64 + x86_64), macOS 10.13+,
+  shipped as an installer .pkg (the same approach as OTT): the plugins are ad-hoc
+  signed, and because Installer puts them in place they carry no quarantine flag, so
+  DAWs load them without the malware warning. The .pkg itself is unsigned (right-click >
+  Open once). `packaging/macos/build_installer.sh` can also Developer-ID sign and
+  notarize if signing identities and Apple credentials are ever provided. An optional
+  Standalone target (`-DACID_BUILD_STANDALONE=ON`) is there for local testing.
 - **JUCE 8.0.4**, the same version Virus Delay builds with, fetched by CMake.
 - The plugin name lives in one CMake cache variable, `ACID_PLUGIN_NAME` (default
   "Acid"). It flows into the product name, the preset folder and the UI.

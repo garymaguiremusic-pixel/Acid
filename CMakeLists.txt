@@ -5,6 +5,15 @@ cmake_minimum_required(VERSION 3.22)
 set(ACID_PLUGIN_NAME "Acid" CACHE STRING "Plugin product name")
 set(ACID_TARGET Acid)
 
+# macOS: universal binary (Apple Silicon + Intel) that runs on 10.13 and later.
+# (Set before project(), where APPLE is not known yet.)
+if(CMAKE_HOST_APPLE)
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "10.13" CACHE STRING "Minimum macOS version")
+    if(NOT CMAKE_OSX_ARCHITECTURES)
+        set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "macOS architectures" FORCE)
+    endif()
+endif()
+
 project(${ACID_TARGET} VERSION 0.1.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -13,6 +22,7 @@ set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 option(ACID_BUILD_PLUGIN     "Build the plugin (needs JUCE)"                 ON)
 option(ACID_BUILD_STANDALONE "Also build a standalone app for testing"       OFF)
+option(ACID_BUILD_AU         "Also build the Audio Unit (macOS only)"        ON)
 option(ACID_BUILD_TESTS      "Build the DSP / sequencer unit tests (Catch2)" ON)
 option(ACID_COPY_AFTER_BUILD "Install the plugin into the user plugin folder after building" OFF)
 set(JUCE_DIR "" CACHE PATH "Path to a local JUCE checkout (leave empty to download JUCE 8.0.4)")
@@ -55,6 +65,9 @@ if(ACID_BUILD_PLUGIN)
     endif()
 
     set(ACID_FORMATS VST3)
+    if(APPLE AND ACID_BUILD_AU)
+        list(APPEND ACID_FORMATS AU)
+    endif()
     if(ACID_BUILD_STANDALONE)
         list(APPEND ACID_FORMATS Standalone)
     endif()
@@ -72,6 +85,8 @@ if(ACID_BUILD_PLUGIN)
         IS_MIDI_EFFECT              FALSE
         EDITOR_WANTS_KEYBOARD_FOCUS FALSE
         VST3_CATEGORIES             Instrument Synth
+        AU_MAIN_TYPE                kAudioUnitType_MusicDevice
+        HARDENED_RUNTIME_ENABLED    TRUE
         COPY_PLUGIN_AFTER_BUILD     ${ACID_COPY_AFTER_BUILD})
 
     target_sources(${ACID_TARGET} PRIVATE

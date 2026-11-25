@@ -1,19 +1,36 @@
 # ACID
 
-A 303-style monophonic acid bass synthesizer: a VST3 instrument for Windows, built
-with JUCE 8. It has an original, procedurally drawn GUI in the style of Virus Delay,
+A 303-style monophonic acid bass synthesizer: a VST3 instrument for Windows and a
+VST3 / Audio Unit instrument for macOS, built with JUCE 8. It has an original, procedurally drawn GUI in the style of Virus Delay,
 with no image assets.
 
 ![Synth page](docs/screenshot-synth.png)
 
 ## Download
 
-Every push to `main` builds the plugin on GitHub Actions. The zipped VST3 is
-published to the **`builds`** branch as `ACID-VST3-Windows-x64.zip`.
+Every push to `main` builds the plugin on GitHub Actions and publishes it to the
+**`builds`** branch:
 
-1. Download `ACID-VST3-Windows-x64.zip` from the `builds` branch.
-2. Unzip it and copy `Acid.vst3` to `C:\Program Files\Common Files\VST3\`.
-3. Rescan plugins in your DAW. Acid is an instrument: it plays from MIDI and from its own sequencer.
+* `ACID-VST3-Windows-x64.zip` (Windows VST3)
+* `ACID-macOS-Installer.pkg` (macOS VST3 + Audio Unit, universal: Apple Silicon and Intel, macOS 10.13+)
+
+### Installing on Windows
+Unzip it and copy `Acid.vst3` to `C:\Program Files\Common Files\VST3\`, then rescan
+plugins in your DAW. Acid is an instrument: it plays from MIDI and from its own sequencer.
+
+### Installing on macOS
+Run `ACID-macOS-Installer.pkg`. It installs `Acid.vst3` into `/Library/Audio/Plug-Ins/VST3`
+and `Acid.component` into `/Library/Audio/Plug-Ins/Components` (choose *Customize* to
+install only one). Plugins put there by the installer don't carry the "downloaded from
+the internet" flag, so your DAW opens them without the "Apple cannot check it for
+malicious software" message.
+
+The installer itself isn't signed with an Apple Developer ID, so macOS asks about it the
+first time: right-click (or Control-click) the .pkg and choose **Open**, then **Open**
+again. On macOS 15 or later, if there's no Open button, go to **System Settings >
+Privacy & Security**, scroll down to the message about the installer and click
+**Open Anyway**. You only need to do this once per download. Then rescan plugins in
+your DAW (Logic Pro checks the Audio Unit by itself).
 
 ## Pages
 
@@ -68,7 +85,7 @@ dragging the bottom-right corner, and remembers its size.
 
 ## Building
 
-Requirements: Windows 10/11, Visual Studio 2022 (Desktop C++), CMake 3.22+ and Git.
+**Windows**: Windows 10/11, Visual Studio 2022 (Desktop C++), CMake 3.22+ and Git.
 CMake downloads JUCE 8.0.4 and Catch2.
 
 ```bat
@@ -78,6 +95,14 @@ cmake --build build --config Release --target Acid_VST3
 
 The plugin ends up in `build\Acid_artefacts\Release\VST3\Acid.vst3`. Add
 `-DACID_COPY_AFTER_BUILD=ON` to install it into the VST3 folder automatically.
+
+**macOS**: Xcode and CMake 3.22+. This builds a universal VST3 + AU and the installer:
+
+```bash
+cmake -B build -G Xcode -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
+cmake --build build --config Release --target Acid_VST3 Acid_AU
+packaging/macos/build_installer.sh build/Acid_artefacts/Release 0.1.0 out
+```
 
 Unit tests (DSP and sequencer, plain C++):
 

@@ -26,23 +26,6 @@ jobs:
         shell: bash
         run: ./build/Release/AcidTests.exe --reporter compact
 
-      # The zipped plugin goes to a "builds" branch (fetched with git) instead of
-      # Actions artifacts, so it never counts against the artifact storage quota.
-      - name: Publish VST3 to builds branch
-        if: github.ref == 'refs/heads/main'
-        shell: bash
-        run: |
-          mkdir out
-          cd build/Acid_artefacts/Release/VST3
-          7z a -tzip "$GITHUB_WORKSPACE/out/ACID-VST3-Windows-x64.zip" "Acid.vst3"
-          cd "$GITHUB_WORKSPACE/out"
-          git init -q -b builds
-          git config user.name "github-actions"
-          git config user.email "github-actions@users.noreply.github.com"
-          git add .
-          git commit -qm "Plugin builds ${GITHUB_SHA::7}"
-          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" builds
-
       - name: Validate with pluginval (strictness 10)
         shell: bash
         run: |
@@ -52,7 +35,20 @@ jobs:
             "build/Acid_artefacts/Release/VST3/Acid.vst3" 2>&1 | tee pluginval.log
           exit ${PIPESTATUS[0]}
 
-      # Logs are only kept when something goes wrong, and only for a few days.
+      - name: Zip VST3
+        shell: bash
+        run: |
+          mkdir out
+          cd build/Acid_artefacts/Release/VST3
+          7z a -tzip "$GITHUB_WORKSPACE/out/ACID-VST3-Windows-x64.zip" "Acid.vst3"
+
+      - name: Keep the zip for publishing
+        uses: actions/upload-artifact@v4
+        with:
+          name: publish-windows
+          retention-days: 1
+          path: out/
+
       - name: Upload logs on failure
         if: failure()
         continue-on-error: true
@@ -65,3 +61,85 @@ jobs:
             build.log
             pluginval.log
             build/CMakeFiles/CMakeConfigureLog.yaml
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: "Configure (universal: Apple Silicon + Intel)"
+        run: cmake -B build -G Xcode -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" -DCMAKE_OSX_DEPLOYMENT_TARGET=10.13 -DACID_BUILD_TESTS=ON 2>&1 | tee configure.log; exit ${PIPESTATUS[0]}
+
+      - name: Build VST3, AU and tests
+        run: cmake --build build --config Release --target Acid_VST3 Acid_AU AcidTests -- -quiet 2>&1 | tee build.log; exit ${PIPESTATUS[0]}
+
+      - name: Unit tests
+        run: ./build/Release/AcidTests --reporter compact
+
+      # Ad-hoc signs the plugins (Apple Silicon refuses unsigned code), checks they are
+      # universal, and wraps them in an installer. Plugins put in place by Installer
+      # don't carry the "downloaded" quarantine flag, so DAWs load them without the
+      # "Apple cannot check it for malicious software" message.
+      - name: Sign and build installer
+        run: packaging/macos/build_installer.sh build/Acid_artefacts/Release 0.1.0 out
+
+      - name: Validate the Audio Unit (auval)
+        run: |
+          mkdir -p ~/Library/Audio/Plug-Ins/Components
+          ditto build/Acid_artefacts/Release/AU/Acid.component ~/Library/Audio/Plug-Ins/Components/Acid.component
+          killall -9 AudioComponentRegistrar 2>/dev/null || true
+          auval -v aumu Acd1 Acpj 2>&1 | tee auval.log
+          grep -q "AU VALIDATION SUCCEEDED" auval.log
+
+      - name: Validate the VST3 with pluginval (strictness 5)
+        run: |
+          curl -sSL -o pluginval.zip https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_macOS.zip
+          unzip -q -o pluginval.zip
+          ./pluginval.app/Contents/MacOS/pluginval --strictness-level 5 --validate-in-process --timeout-ms 900000 \
+            build/Acid_artefacts/Release/VST3/Acid.vst3 2>&1 | tee pluginval.log
+          exit ${PIPESTATUS[0]}
+
+      - name: Keep the installer for publishing
+        uses: actions/upload-artifact@v4
+        with:
+          name: publish-macos
+          retention-days: 1
+          path: out/
+
+      - name: Upload logs on failure
+        if: failure()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-logs
+          retention-days: 3
+          path: |
+            configure.log
+            build.log
+            auval.log
+            pluginval.log
+
+  # The Windows zip and the macOS installer go to a "builds" branch (fetch with git).
+  publish:
+    needs: [windows, macos]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: publish-windows
+          path: out
+      - uses: actions/download-artifact@v4
+        with:
+          name: publish-macos
+          path: out
+      - name: Push builds branch
+        run: |
+          cd out
+          ls -l
+          git init -q -b builds
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add .
+          git commit -qm "Plugin builds ${GITHUB_SHA::7}"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" builds
