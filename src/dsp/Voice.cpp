@@ -67,10 +67,11 @@ void Voice::setSettings (const VoiceSettings& s)
     }
 }
 
-void Voice::noteOn (int midiNote, bool accent, bool legato, float level)
+void Voice::noteOn (int midiNote, bool accent, bool legato, float level, float filterVelocity)
 {
     targetNote = (float) midiNote;
     levelTarget = clampf (level, 0.0f, 1.0f);
+    velTarget = clampf (filterVelocity, 0.0f, 1.0f);   // a tied step glides to it, a new note jumps (below)
     accentNote = accent;
 
     if (accent)
@@ -80,6 +81,7 @@ void Voice::noteOn (int midiNote, bool accent, bool legato, float level)
         return;   // slide: the pitch glides, the envelopes carry on
 
     currentNote = targetNote;
+    velSm = velTarget;
     if (! ampEnv.isActive())
         levelSm = levelTarget;      // a fresh note starts at its own level (no fade from the last one)
     filterEnv.trigger (set.envAttackMs, accent ? set.accDecayMs : set.decayMs);
@@ -170,7 +172,10 @@ void Voice::render (float* left, float* right, int numSamples, const VoiceMod& m
         const float accentCv = accentCircuit.process (accentPulse);
         const float amp = ampEnv.process();
 
+        velSm += (velTarget - velSm) * glideCoef;      // a tied step: the cutoff slides with the pitch
         float logF = logLow + fEnv * (logPeak - logLow) + accentCv * kAccentOctaves;
+        if (set.velLink)
+            logF -= (1.0f - velSm) * kVelocityOctaves * set.velAmount;   // velocity 127 = no change
         if (mod.cutoffOct) logF += mod.cutoffOct[m];
         const float cutoff = clampf (std::exp2 (logF), 20.0f, maxCutoff);
         lastCutoffHz = cutoff;

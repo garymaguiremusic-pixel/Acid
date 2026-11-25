@@ -23,6 +23,11 @@ private:
     juce::TextButton transistorButton { "Transistor" };
     InfoLcd cutoffLcd, resoLcd;
 
+    // FILTER > VELOCITY: velocity (the sequencer's Velocity lane) moves the cutoff
+    juce::TextButton velLinkButton { "Vel Link" };
+    AcidKnob velAmountKnob { AcidKnob::Size::Small, "Vel Amt" };
+    InfoLcd velocityLcd;
+
     // ENVELOPE
     AcidKnob envModKnob { AcidKnob::Size::Small, "Env Mod" }, decayKnob { AcidKnob::Size::Small, "Decay" };
     AcidKnob accentKnob { AcidKnob::Size::Small, "Accent" };

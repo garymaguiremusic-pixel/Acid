@@ -200,3 +200,46 @@ TEST_CASE ("LFO bar retrigger follows the song position", "[dsp][lfo]")
     lfo.process (out, 4, 0.0, 0.25, true, 2.0, ppqPerSample);   // one cycle per bar, at beat 2
     REQUIRE_THAT (out[0], Catch::Matchers::WithinAbs (0.0, 1.0e-3));   // halfway through the bar = 0 on a rising saw
 }
+
+TEST_CASE ("Vel Link: lower velocity closes the cutoff, 127 leaves it, a tie slides it", "[dsp][velocity]")
+{
+    const double sr = 48000.0;
+    auto cutoffAfter = [&] (bool link, float amount, float velocity)
+    {
+        Voice v;
+        v.prepare (sr);
+        VoiceSettings s;
+        s.envMod = 0.0f;
+        s.cutoffLowHz = 20000.0f;     // no envelope sweep: the cutoff sits on the knob
+        s.velLink = link;
+        s.velAmount = amount;
+        v.setSettings (s);
+        std::vector<float> l (480), r (480);
+        v.noteOn (48, false, false, 1.0f, velocity);
+        v.render (l.data(), r.data(), 480, {}, 0);
+        return v.getLastCutoffHz();
+    };
+
+    const float base = cutoffAfter (false, 1.0f, 0.2f);
+    REQUIRE (std::abs (cutoffAfter (true, 1.0f, 1.0f) - base) < base * 0.01f);         // 127: no change
+    const float closed = cutoffAfter (true, 1.0f, 0.0f);
+    REQUIRE (std::abs (std::log2 (base / closed) - 4.0f) < 0.05f);                     // 100 %: 4 octaves
+    const float half = cutoffAfter (true, 0.5f, 0.0f);
+    REQUIRE (std::abs (std::log2 (base / half) - 2.0f) < 0.05f);                        // 50 %: 2 octaves
+
+    // a tied (legato) step slides the cutoff to the new velocity instead of jumping
+    Voice v;
+    v.prepare (sr);
+    VoiceSettings s;
+    s.envMod = 0.0f; s.cutoffLowHz = 20000.0f; s.velLink = true; s.velAmount = 1.0f; s.slideMs = 60.0f;
+    v.setSettings (s);
+    std::vector<float> l (4800), r (4800);
+    v.noteOn (48, false, false, 1.0f, 1.0f);
+    v.render (l.data(), r.data(), 480, {}, 0);
+    const float open = v.getLastCutoffHz();
+    v.noteOn (50, false, true, 1.0f, 0.0f);
+    v.render (l.data(), r.data(), 96, {}, 0);          // 2 ms in: still near the old cutoff
+    REQUIRE (v.getLastCutoffHz() > open * 0.5f);
+    v.render (l.data(), r.data(), 4800, {}, 0);        // 100 ms later: arrived
+    REQUIRE (v.getLastCutoffHz() < open / 12.0f);
+}

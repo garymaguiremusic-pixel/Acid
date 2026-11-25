@@ -25,6 +25,10 @@ SynthPage::SynthPage (AcidAudioProcessor& p) : PageBase (p), sequencer (p)
     attach (transistorButton, transistor);
     addAndMakeVisible (cutoffLcd);
     addAndMakeVisible (resoLcd);
+    attach (velLinkButton, filterVelLink);
+    attach (velAmountKnob, filterVelAmount);
+    addAndMakeVisible (velocityLcd);
+    setHelp (velocityLcd, "VELOCITY  -  the velocity Vel Link is following: the step's Velocity lane, or the key you played");
 
     // ENVELOPE
     attach (envModKnob, envMod);
@@ -42,8 +46,15 @@ SynthPage::SynthPage (AcidAudioProcessor& p) : PageBase (p), sequencer (p)
 void SynthPage::paint (Graphics& g)
 {
     AcidLookAndFeel::drawPanel (g, { 8.0f, 0.0f, 150.0f, 206.0f }, "Osc");
-    AcidLookAndFeel::drawPanel (g, { 164.0f, 0.0f, 420.0f, 206.0f }, "Filter");
-    AcidLookAndFeel::drawPanel (g, { 590.0f, 0.0f, 402.0f, 206.0f }, "Envelope");
+    AcidLookAndFeel::drawPanel (g, { 164.0f, 0.0f, 500.0f, 206.0f }, "Filter");
+    AcidLookAndFeel::drawPanel (g, { 670.0f, 0.0f, 322.0f, 206.0f }, "Envelope");
+
+    // the Velocity column of the Filter
+    g.setColour (Theme::get().bevelDark);
+    g.drawVerticalLine (582, 24.0f, 198.0f);
+    g.setColour (Colours::white.withAlpha (0.07f));
+    g.drawVerticalLine (583, 24.0f, 198.0f);
+    AcidLookAndFeel::drawSmallLabel (g, "Velocity", { 588.0f, 24.0f, 70.0f, 12.0f });
     AcidLookAndFeel::drawSmallLabel (g, "Wave", { 20.0f, 22.0f, 126.0f, 12.0f }, Justification::centredLeft);
 }
 
@@ -64,16 +75,19 @@ void SynthPage::resized()
     bassKnob.setBounds (430, 100, 72, 76);
     trebleKnob.setBounds (504, 100, 72, 76);
     transistorButton.setBounds (178, 176, 242, 22);
+    velLinkButton.setBounds (590, 40, 66, 22);
+    velAmountKnob.setBounds (586, 68, 74, 80);
+    velocityLcd.setBounds (588, 152, 70, 22);
 
     // ENVELOPE: Env Mod, Decay, Accent / Env Attack, Acc Decay, Acc Sweep, with the live meter
-    const int ex = 604, step = 96;
-    envModKnob.setBounds (ex, 22, 84, 84);
-    decayKnob.setBounds (ex + step, 22, 84, 84);
-    accentKnob.setBounds (ex + step * 2, 22, 84, 84);
-    envAttackKnob.setBounds (ex, 112, 84, 84);
-    accDecayKnob.setBounds (ex + step, 112, 84, 84);
-    accSweepKnob.setBounds (ex + step * 2, 112, 84, 84);
-    envMeter.setBounds (ex + step * 3, 70, 92, 70);
+    const int ex = 676, step = 80;
+    envModKnob.setBounds (ex, 22, 78, 84);
+    decayKnob.setBounds (ex + step, 22, 78, 84);
+    accentKnob.setBounds (ex + step * 2, 22, 78, 84);
+    envAttackKnob.setBounds (ex, 112, 78, 84);
+    accDecayKnob.setBounds (ex + step, 112, 78, 84);
+    accSweepKnob.setBounds (ex + step * 2, 112, 78, 84);
+    envMeter.setBounds (ex + step * 3 + 2, 70, 70, 70);
 
     sequencer.setBounds (0, 212, getWidth(), getHeight() - 212);
 }
@@ -88,6 +102,11 @@ void SynthPage::update()
     cutoffLcd.setContent ("CUTOFF", formatHz (cutoffToHz (value (ParamIDs::cutoff))));
     resoLcd.setContent ("RESONANCE", formatNumber (value (ParamIDs::resonance)));
     envMeter.setLevels (gui.filterEnv.load(), jlimit (0.0f, 1.0f, gui.accentCharge.load()));
+
+    const bool velLink = value (ParamIDs::filterVelLink) > 0.5f;
+    velAmountKnob.setEnabled (velLink);
+    velAmountKnob.setAlpha (velLink ? 1.0f : 0.4f);
+    velocityLcd.setContent ("VEL", velLink ? String (gui.lastVelocity.load()) : String ("off"));
 
     // modulation arcs where an LFO targets a knob
     float cutoffMod = 0.0f, resoMod = 0.0f;

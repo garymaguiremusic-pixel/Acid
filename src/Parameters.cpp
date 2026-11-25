@@ -109,6 +109,8 @@ String helpForParameter (const String& id)
         { cutoff,      "Filter cutoff: where the resonant peak sits." },
         { resonance,   "Filter resonance. The diode model squelches but never whistles." },
         { transistor,  "Switch the filter from the diode ladder to a transistor ladder." },
+        { filterVelLink, "Vel Link: velocity moves the cutoff. The sequencer's Velocity lane when it plays, the keys otherwise." },
+        { filterVelAmount, "How far low velocities close the cutoff (100 % = up to 4 octaves at the lowest velocity; 127 = no change)." },
         { bass,        "Low shelf after the filter." },
         { treble,      "High shelf after the filter." },
         { drive,       "Asymmetric overdrive after the VCA." },
@@ -248,6 +250,8 @@ AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     knob (cutoff,    "Cutoff",     45.0f);
     knob (resonance, "Resonance",  65.0f);
     toggle (transistor, "Transistor", false);
+    toggle (filterVelLink, "Filter Velocity Link", false);
+    knob (filterVelAmount, "Filter Velocity Amount", 50.0f);
     number (bass,   "Bass",   -12.0f, 12.0f, 0.0f);
     number (treble, "Treble", -12.0f, 12.0f, 0.0f);
     knob (drive,     "Drive",      15.0f);

@@ -30,7 +30,8 @@ AcidAudioProcessor::AcidAudioProcessor()
     P.tune = get (tune);             P.volume = get (volume);        P.echoOn = get (echoOn);
     P.tubeOn = get (tubeOn);         P.wave = get (wave);            P.retro = get (retro);
     P.cutoffLow = get (cutoffLow);   P.cutoff = get (cutoff);        P.resonance = get (resonance);
-    P.transistor = get (transistor); P.bass = get (bass);            P.treble = get (treble);
+    P.transistor = get (transistor); P.bass = get (bass);
+    P.filterVelLink = get (filterVelLink); P.filterVelAmount = get (filterVelAmount);            P.treble = get (treble);
     P.drive = get (drive);           P.envMod = get (envMod);        P.decay = get (decay);
     P.accent = get (accent);         P.envAttack = get (envAttack);
     P.accDecay = get (accDecay);     P.accSweep = get (accSweep);    P.slideTime = get (slideTime);
@@ -438,6 +439,8 @@ void AcidAudioProcessor::updateSettings() noexcept
     v.accSweep        = norm100 (P.accSweep->load());
     v.drive           = norm100 (P.drive->load());
     v.transistor      = P.transistor->load() > 0.5f;
+    v.velLink         = P.filterVelLink->load() > 0.5f;
+    v.velAmount       = norm100 (P.filterVelAmount->load());
     v.oscBLevel       = norm100 (P.oscBLevel->load());
     v.oscBTuneSemis   = P.oscBTune->load();
     v.oscBDetuneCents = P.oscBDetune->load();
@@ -573,12 +576,16 @@ void AcidAudioProcessor::applyArpEvent (const as::arp::NoteEvent& e) noexcept
     using Type = as::arp::NoteEvent::Type;
     // loudness: the note's velocity scaled by the step's Volume (as in ArpSampler)
     const float level = (float) jlimit (0, 127, e.velocity) / 127.0f * (float) jlimit (0, 127, e.volume) / 127.0f;
+    // Vel Link follows the step's Velocity lane, whatever the velocity mode (as in ArpSampler)
+    const int laneVelocity = jlimit (1, 127, e.stepVelocity);
+    const float filterVelocity = (float) laneVelocity / 127.0f;
 
     switch (e.type)
     {
         case Type::Start:
             // mono: the newest note takes the voice (in Chord mode, the top note)
-            voice.noteOn (e.note, e.accent, false, level);
+            voice.noteOn (e.note, e.accent, false, level, filterVelocity);
+            gui.lastVelocity.store (laneVelocity);
             voiceArpId = e.id;
             for (auto& l : lfos) l.noteTriggered();
             break;
@@ -586,7 +593,10 @@ void AcidAudioProcessor::applyArpEvent (const as::arp::NoteEvent& e) noexcept
         case Type::Change:
             // a tie: glide to the new pitch over the Glide time, without retriggering
             if (e.id == voiceArpId)
-                voice.noteOn (e.note, e.accent, true, level);
+            {
+                voice.noteOn (e.note, e.accent, true, level, filterVelocity);
+                gui.lastVelocity.store (laneVelocity);
+            }
             break;
 
         case Type::Stop:
@@ -623,7 +633,9 @@ void AcidAudioProcessor::handleDirectMidi (const MidiMessage& msg) noexcept
         const bool legato = numHeldNotes > 0;
         remove (note);
         if (numHeldNotes < (int) heldNotes.size()) heldNotes[(size_t) numHeldNotes++] = note;
-        voice.noteOn (note, msg.getVelocity() >= 100, legato, (float) msg.getVelocity() / 127.0f);
+        const float velocity = (float) msg.getVelocity() / 127.0f;
+        voice.noteOn (note, msg.getVelocity() >= 100, legato, velocity, velocity);
+        gui.lastVelocity.store (msg.getVelocity());
         if (! legato)
             for (auto& l : lfos) l.noteTriggered();
     }

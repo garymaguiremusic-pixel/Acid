@@ -125,6 +125,7 @@ public:
         std::atomic<float> lfoPhase[2] { 0.0f, 0.0f };
         std::atomic<float> bandLevel[3] { 0.0f, 0.0f, 0.0f };
         std::atomic<bool>  gateOn { false };
+        std::atomic<int>   lastVelocity { 127 };   // what Vel Link used for the last note
         std::atomic<int>   editorWidth { 0 };
         std::atomic<bool>  lightTheme { false };
         std::atomic<int>   page { 0 };
@@ -198,7 +199,7 @@ private:
     struct ParamPointers
     {
         std::atomic<float> *tune, *volume, *echoOn, *tubeOn, *wave, *retro, *cutoffLow, *cutoff, *resonance,
-            *transistor, *bass, *treble, *drive, *envMod, *decay, *accent, *envAttack, *accDecay, *accSweep, *slideTime,
+            *transistor, *filterVelLink, *filterVelAmount, *bass, *treble, *drive, *envMod, *decay, *accent, *envAttack, *accDecay, *accSweep, *slideTime,
             *arpOn, *arpMode, *arpRate, *arpRateType, *arpGate, *arpSwing, *arpOctave, *velMode, *bpm, *autoPlay,
             *midiOut, *seqLength, *seqEnd, *scaleKey, *scale, *scaleLock,
             *oscBLevel, *oscBTune, *oscBDetune, *unisonVoices, *unisonSpread, *unisonFree,

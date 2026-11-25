@@ -25,6 +25,8 @@ struct VoiceSettings
     float accSweep        = 0.3f;     // 0..1
     float drive           = 0.0f;     // 0..1
     bool  transistor      = false;
+    bool  velLink         = false;    // velocity moves the cutoff
+    float velAmount       = 0.5f;     // 0..1: how far (up to kVelocityOctaves)
 
     float oscBLevel       = 0.0f;     // 0..1
     float oscBTuneSemis   = 0.0f;
@@ -58,6 +60,7 @@ public:
     static constexpr int kMaxUnison = 8;
     static constexpr float kEnvModOctaves = 5.0f;
     static constexpr float kAccentOctaves = 2.5f;
+    static constexpr float kVelocityOctaves = 4.0f;   // Vel Link at 100 %: the lowest velocity closes this far
     static constexpr int kBaseNote = 36;          // C2: the lowest note of a pattern at octave 0
     static constexpr float kOutputTrim = 0.9f;    // output level (headroom for the tube and echo)
 
@@ -66,8 +69,9 @@ public:
     void setSettings (const VoiceSettings& s);
 
     /** legato = slide: glide to the new pitch without retriggering the envelopes.
-        level (0..1) scales the note's loudness (the sequencer's velocity x Volume). */
-    void noteOn (int midiNote, bool accent, bool legato, float level = 1.0f);
+        level (0..1) scales the note's loudness (the sequencer's velocity x Volume).
+        filterVelocity (0..1) drives Vel Link: 1 leaves the cutoff, lower closes it. */
+    void noteOn (int midiNote, bool accent, bool legato, float level = 1.0f, float filterVelocity = 1.0f);
     void noteOff();
     bool isGateOn() const noexcept { return gate; }
 
@@ -108,6 +112,7 @@ private:
     float smLow = 0.0f, smPeak = 0.0f, smRes = 0.0f, smMorph = 0.0f, smoothCoef = 1.0f;
     bool smoothersPrimed = false;
     float levelTarget = 1.0f, levelSm = 1.0f;
+    float velTarget = 1.0f, velSm = 1.0f;
     int activeVoices = 1;
     bool stereo = false;
 };

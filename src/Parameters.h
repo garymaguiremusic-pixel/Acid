@@ -33,6 +33,8 @@ namespace ParamIDs
     inline constexpr auto cutoff      = "cutoff";
     inline constexpr auto resonance   = "resonance";
     inline constexpr auto transistor  = "transistor";
+    inline constexpr auto filterVelLink   = "filterVelLink";
+    inline constexpr auto filterVelAmount = "filterVelAmount";
     inline constexpr auto bass        = "bass";
     inline constexpr auto treble      = "treble";
     inline constexpr auto drive       = "drive";

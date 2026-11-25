@@ -41,7 +41,7 @@ step sequencer. Acid's **Glide** stays: it's in the Step Sequencer panel.
 | Section | Controls |
 |---|---|
 | **Osc** | Wave (Saw / Square, the square shaped from the saw 303-style), wave display, **Retro** (slow pitch drift, per-note variation, softer top end) |
-| **Filter** | **Cutoff** and **Resonance** (large), **Cutoff Low** (the floor the envelope falls back to), Drive, Bass, Treble, **Transistor** (diode ladder by default, or a transistor ladder) |
+| **Filter** | **Cutoff** and **Resonance** (large), **Cutoff Low** (the floor the envelope falls back to), Drive, Bass, Treble, **Transistor** (diode ladder by default, or a transistor ladder). **Velocity**: **Vel Link** ties the cutoff to velocity, **Vel Amt** sets how far (see below) |
 | **Envelope** | Env Mod, Decay, Accent, Env Attack, Acc Decay, **Acc Sweep** (consecutive accents build the cutoff up), live ENV / ACC meter |
 | **Arpeggiator** | Arp On, Mode (Up, Down, Up/Down, Up/Down2, Down/Up, Down/Up2, Random, Ordered, **Step**, Chord), Octave 1-4, Time (1/2-1/32, Straight / Triplet / Dotted), Gate 1-200 %, Swing -100 to +100 %, Velocity mode (Key, Hold, Step, Step+Key, Step+Hold), **Auto Play**, **MIDI Out**, Tempo (host, or the internal BPM) |
 | **Randomise** | Randomise / Undo, Density, Range, Tie, Ratch, Acc, Vel Lo, Vel Hi, Lock Pitch / Vel / Rests / Ties / Ratch / Acc, **Scale Lock** with Key and 16 scales, **File Notes**, **Drag MIDI** with length (1-8 bars), root and chord |
@@ -90,6 +90,12 @@ step). Double-click resets to the default. The window (1000 x 900 at 100 %) resi
   and the **Acc Sweep** build-up.
 * Loudness is the note's velocity (from the Velocity mode) times the step's **Volume**.
   **Volume 0** is a rest.
+* **Vel Link** (Filter > Velocity): while the sequencer plays, the cutoff follows each step's
+  **Velocity** lane, in every velocity mode. So you can keep the loudness on the keys and use
+  the lane purely for filter movement. With the arp off it follows the keys you play.
+  Velocity 127 leaves the cutoff where it is; lower velocities close it, by up to 4 octaves
+  at 100 % Vel Amt. A tied step slides its cutoff to the new value over the Glide time,
+  together with the pitch.
 * **MIDI Out** sends the notes (the Velocity lane as velocity, the Volume lane as CC11) to
   drive another instrument. **Drag MIDI** renders the same notes into a clip.
 * With **Arp On** off, MIDI plays the synth directly. Last-note priority; overlapping notes

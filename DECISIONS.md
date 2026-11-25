@@ -81,6 +81,9 @@ playable acid sound.
 - Acid is monophonic: Start events retrigger the voice, Change events (ties) glide without
   retriggering, and a Stop only ends the note that still owns the voice. In Chord mode the
   newest (top) note plays.
+- **Vel Link** works like ArpSampler's filter Vel Link: the step's Velocity lane (any
+  velocity mode) or the key velocity, 127 = no change, down to -4 octaves at 100 %. In Acid a
+  tie slides the cutoff over the Glide time (with the pitch) rather than a fixed smoothing.
 - **Accent** drives Acid's accent circuit. Loudness = velocity x the step's Volume, as in ArpSampler.
 - **Base octave**: transpose 0 plays the Key's root at C1 (MIDI 36), not ArpSampler's C3,
   because Acid is a bass synth. Auto Play, Drag MIDI's Auto root and MIDI / audio import all
