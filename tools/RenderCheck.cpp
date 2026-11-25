@@ -77,7 +77,7 @@ int main (int argc, char** argv)
             {
                 processor->gui.page.store (page);
                 std::unique_ptr<AudioProcessorEditor> editor (processor->createEditor());
-                editor->setSize (1000, 720);
+                editor->setSize (1000, 900);
                 for (int t = 0; t < 5; ++t) { editor->getChildComponent (0)->resized(); }
                 auto image = editor->createComponentSnapshot (editor->getLocalBounds(), true, 1.0f);
                 PNGImageFormat png;
@@ -87,6 +87,22 @@ int main (int argc, char** argv)
                 png.writeImageToStream (image, stream);
             }
         }
+    }
+    // one more: the Sequencer page with the Sequence Browser open (browserShot)
+    if (argc > 3)
+    {
+        processor->gui.lightTheme.store (false);
+        processor->gui.page.store (0);
+        processor->setSequenceBrowserOpen (true);
+        std::unique_ptr<AudioProcessorEditor> editor (processor->createEditor());
+        editor->setSize (1000, 900);
+        auto image = editor->createComponentSnapshot (editor->getLocalBounds(), true, 1.0f);
+        PNGImageFormat png;
+        auto shot = outDir.getChildFile ("page0_browser.png");
+        shot.deleteFile();
+        FileOutputStream stream (shot);
+        png.writeImageToStream (image, stream);
+        processor->setSequenceBrowserOpen (false);
     }
     return peak > 0.001f ? 0 : 1;
 }

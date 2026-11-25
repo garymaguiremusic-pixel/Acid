@@ -34,15 +34,19 @@ your DAW (Logic Pro checks the Audio Unit by itself).
 
 ## Pages
 
-### Synth
+### Synth / Seq
+The synth and its sequencer share one page. The sequencer is the **ArpSampler** arpeggiator and
+step sequencer. Acid's **Glide** stays: it's in the Step Sequencer panel.
+
 | Section | Controls |
 |---|---|
-| **Osc** | Wave (Saw / Square: the square is shaped from the saw, 303-style), wave display, **Retro** (slow pitch drift, per-note variation, softer top end) |
-| **Filter** | **Cutoff** and **Resonance** (large), **Cutoff Low** (the floor the envelope falls back to), Drive, Bass, Treble, **Transistor** (diode ladder by default; this switches to a transistor ladder) |
-| **Envelope** | Env Mod, Decay, Accent, Gate, Env Attack, Acc Decay, **Acc Sweep** (consecutive accents build the cutoff up), live ENV / ACC meter |
-| **Sequencer** | Play, Seq, Key, Pattern (P01-P16), Length (1-64), Swing, Slide time, Transpose, Rate (1/8, 1/16, 1/16T, 1/32), Direction (Forward / Reverse / Ping-Pong / Random), step pages, Follow |
-| **Tools** | Random (everything / notes / accents / slides / octaves, with root and scale), Mutate, Clear, rotate left / right, Copy / Paste, Undo / Redo, MIDI (drag the button into your DAW for a MIDI clip, export / import .mid, MIDI out on/off) |
-| **Grid** | One-octave piano roll with slide lines and octave markers, plus rows for Up, Down, Accent, Slide, Ratchet (1-4 hits) and Gate (Note / Rest / Tie). Click or drag to edit, right-click a note for a rest, click a step number to set the length. |
+| **Osc** | Wave (Saw / Square, the square shaped from the saw 303-style), wave display, **Retro** (slow pitch drift, per-note variation, softer top end) |
+| **Filter** | **Cutoff** and **Resonance** (large), **Cutoff Low** (the floor the envelope falls back to), Drive, Bass, Treble, **Transistor** (diode ladder by default, or a transistor ladder) |
+| **Envelope** | Env Mod, Decay, Accent, Env Attack, Acc Decay, **Acc Sweep** (consecutive accents build the cutoff up), live ENV / ACC meter |
+| **Arpeggiator** | Arp On, Mode (Up, Down, Up/Down, Up/Down2, Down/Up, Down/Up2, Random, Ordered, **Step**, Chord), Octave 1-4, Time (1/2-1/32, Straight / Triplet / Dotted), Gate 1-200 %, Swing -100 to +100 %, Velocity mode (Key, Hold, Step, Step+Key, Step+Hold), **Auto Play**, **MIDI Out**, Tempo (host, or the internal BPM) |
+| **Randomise** | Randomise / Undo, Density, Range, Tie, Ratch, Acc, Vel Lo, Vel Hi, Lock Pitch / Vel / Rests / Ties / Ratch / Acc, **Scale Lock** with Key and 16 scales, **File Notes**, **Drag MIDI** with length (1-8 bars), root and chord |
+| **Sequence** strip | The MIDI or audio file the steps came from, favourite star, previous / next file, **Browse** (the Sequence Browser: folders, favourites, tags and search; each file you pick loads into the steps in your Key / Scale) |
+| **Step Sequencer** | Length 16 / 32, End, **Glide**, Undo / Redo, Clear, Import (a MIDI file, or the notes of an audio file; or drop a file on the grid). Lanes: **Volume** (bottom = rest), **Velocity**, **Transpose**, **Ratchet** (1-4 hits), **Accent**, **Tie** |
 
 ### Layers
 ![Layers page](docs/screenshot-layers.png)
@@ -63,25 +67,35 @@ Output and Mix. **Generate Distortion** randomises the settings, with Undo / Ini
 In the band graph, drag the edges for the frequencies and the centres for the gains.
 
 ### Header
-Save, Clear (sound back to default), the preset display (‹ ›, click it to browse the
-20 factory presets and your user presets), Echo / Tube on-off, Dark / Light theme,
-Tune and Volume. Hover over any control to see its value and a short explanation in
+Save, Clear (sound back to default, the pattern stays), the preset display (‹ ›, click it
+to browse the 20 factory presets and your user presets), Echo / Tube on-off, Dark / Light
+theme, Tune and Volume. Hover over any control to see its value and a short explanation in
 the display.
 
 **Knobs** move in whole steps of 1. Drag, or use the mouse wheel (one notch = one
-step). Double-click resets to the default. The window resizes from 60 % to 200 % by
-dragging the bottom-right corner, and remembers its size.
+step). Double-click resets to the default. The window (1000 x 900 at 100 %) resizes from
+60 % to 200 % by dragging the bottom-right corner, and remembers its size.
 
-## Sequencer behaviour
-* Steps lock to the host's song position, sample-accurately. With the host stopped,
-  **Play** runs the pattern on its own clock.
-* **Slide** on a step holds the gate into the next step, which glides there (no
-  envelope retrigger). **Tie** extends the previous note. **Rest** plays nothing.
-* **Accent** applies at note-on, also to slid notes. **Ratchet** splits a step into
-  2-4 hits.
-* **Key** mode: a held MIDI key transposes the pattern (relative to C) and gates it.
-* With **Seq** off, or while the pattern is stopped, MIDI plays the synth directly.
-  Overlapping notes slide and velocity >= 100 is an accent.
+## How the sequencer plays Acid
+* It works as in ArpSampler: steps lock to the host's bars; with the host stopped, the
+  clock starts at the first key you press. **Step** mode (the default) plays the step
+  sequence from the key you hold. **Auto Play** (on by default) plays it whenever the host
+  plays, from the Key's root in the bass octave (C1 for C, A1 for A); a key you play takes
+  over while you hold it.
+* Acid is monophonic: each new step retriggers the voice, and the newest note wins (in
+  Chord mode, the top note).
+* **Tie** holds the step into the next one without retriggering. A tie to a new pitch
+  **glides** there over the **Glide** time, which is the 303 slide.
+* **Accent** plays at full velocity and fires Acid's accent: louder, with the filter kick
+  and the **Acc Sweep** build-up.
+* Loudness is the note's velocity (from the Velocity mode) times the step's **Volume**.
+  **Volume 0** is a rest.
+* **MIDI Out** sends the notes (the Velocity lane as velocity, the Volume lane as CC11) to
+  drive another instrument. **Drag MIDI** renders the same notes into a clip.
+* With **Arp On** off, MIDI plays the synth directly. Last-note priority; overlapping notes
+  slide; velocity 100 or more is an accent.
+* ArpSampler's **Reverse** lane is left out: a synth oscillator has no sample to play
+  backwards.
 
 ## Building
 
@@ -120,12 +134,13 @@ screenshot tool).
 ```
 src/dsp/      oscillator, ladder filter, envelopes + accent circuit, voice, LFO,
               tone stack, crossover, multiband tube, echo (plain C++, unit-tested)
-src/seq/      step / pattern model, sequencer engine, random / mutate / rotate,
-              undo, MIDI export / import
+src/arp/      the ArpSampler sequencer: arp engine, pattern model, scales, randomiser,
+              MIDI writer, import (MIDI / audio), export (Drag MIDI), sequence library
 src/presets/  preset manager (JSON user presets) and the factory presets
 src/ui/       look-and-feel, knob, widgets, step grid, band graph, tube view, pages
-tests/        Catch2 tests (filter stability, accent sweep, slide timing,
-              sequencer rules, crossover flat sum, oversampling latency ...)
+tests/        Catch2 tests: DSP (filter stability, accent sweep, slide timing, crossover
+              flat sum, oversampling latency ...) and the sequencer (step timing, ties,
+              rests, accents, ratchets, preset conversion, import, export, randomise)
 ```
 
 See [DECISIONS.md](DECISIONS.md) for the design choices.

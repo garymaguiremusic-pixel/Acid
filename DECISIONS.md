@@ -20,7 +20,7 @@ playable acid sound.
   as the only accent, light grey labels, white highlights, chrome large knobs, black
   small knobs, LCD readouts, mode-style page tabs, bottom title bar with a "?" help).
   All drawing is procedural. There are no image assets and no third-party branding.
-- **Size**: the base layout is 1000 x 720 (not the 1600 x 1176 in the spec), so the
+- **Size**: the base layout is 1000 x 900 (not the 1600 x 1176 in the spec), so the
   Virus Delay font sizes and control sizes read the same. The window resizes from
   60 % to 200 % with a fixed aspect ratio, scales the whole panel, and remembers its
   size.
@@ -30,7 +30,7 @@ playable acid sound.
   directly. Otherwise it runs 0..100 and is mapped to real units (Hz, ms), which the
   knob, the help display and the host all show.
 - **Hover help** goes in the header display (bank / preset name / help line) instead
-  of tooltips.
+  of tooltips. Controls that came from ArpSampler show their tooltip text there too.
 - **Light theme**: a pale-grey variant with the same orange accent. The theme is saved
   with the session.
 - The **Steps** page buttons (1-16 ... 49-64) sit in the sequencer's control row. The
@@ -72,22 +72,32 @@ playable acid sound.
   oversampling).
 
 ## Sequencer and MIDI
-- With **Seq on** the pattern plays whenever the host plays (or the Play button is
-  on). While nothing is running, incoming MIDI still plays the synth directly, so the
-  keyboard always works. While the pattern runs, incoming notes are ignored (except
-  in Key mode).
-- **Key mode**: holding a key transposes the pattern by (key - 60) and runs it. With the
-  host stopped, the first key restarts the pattern from step 1 at that exact sample.
-- **Direct MIDI play**: last-note priority; an overlapping (legato) note slides;
-  velocity >= 100 is an accent.
-- **Swing** 0..75 %: at 75 % the off-beat steps land on the dotted position.
-- **Ratchets** are only played on steps that start a new note (not on slid-into notes).
-- **MIDI out** (on by default, toggled in the MIDI menu): slides are sent as
-  overlapping notes, accents as velocity 127, normal notes as 100.
+- The sequencer is **ArpSampler's arpeggiator and step sequencer**, ported with its code
+  (arp engine, pattern model, scales, randomiser, MIDI writer, import, export, sequence
+  browser). Acid's **Glide** (the 303 slide time) is kept, in the Step Sequencer panel. A
+  Tie to a new pitch glides over it.
+- The synth and the sequencer share one page ("Synth / Seq"), so the window base size is
+  1000 x 900.
+- Acid is monophonic: Start events retrigger the voice, Change events (ties) glide without
+  retriggering, and a Stop only ends the note that still owns the voice. In Chord mode the
+  newest (top) note plays.
+- **Accent** drives Acid's accent circuit. Loudness = velocity x the step's Volume, as in ArpSampler.
+- **Base octave**: transpose 0 plays the Key's root at C1 (MIDI 36), not ArpSampler's C3,
+  because Acid is a bass synth. Auto Play, Drag MIDI's Auto root and MIDI / audio import all
+  use it.
+- **Defaults**: Arp On, Step mode, Auto Play on (the pattern plays with the host, like the
+  first Acid sequencer), Gate 50 %, MIDI Out off (as in ArpSampler).
+- **Left out**: the Reverse lane (no sample to play backwards), Retrigger (always on; ties
+  give the legato), and the sampler-only Key Lock / Quantise switches.
+- **Older projects and presets** from the first Acid sequencer load their first pattern,
+  converted: slide becomes Tie, a tie step holds the previous note, rest becomes Volume 0,
+  ratchets carry over.
+- Presets keep the randomiser and export settings, the internal tempo, MIDI Out and Auto
+  Play, as ArpSampler's do. Loading a preset is one undo step for the pattern.
 - **Factory presets** are built into the plugin. User presets are JSON files in
-  `Documents/Acid/Presets` (params + 16 patterns + name + bank tag). Hosts that
+  `Documents/Acid/Presets` (params + the pattern + name + bank tag). Hosts that
   browse "programs" see the factory presets.
 - File layout: the spec named `DiodeLadder` / `TransistorLadder` / `AccentCircuit` /
-  `Unison` / `UndoStack` separately. They live in `dsp/Ladder` (one class, two
-  models), `dsp/Envelopes` (envelopes + accent circuit), `dsp/Voice` (unison is part
-  of the voice) and `seq/PatternTools` (undo stack).
+  `Unison` separately. They live in `dsp/Ladder` (one class, two models),
+  `dsp/Envelopes` (envelopes + accent circuit) and `dsp/Voice` (unison is part of the
+  voice). The sequencer, including its undo, is ArpSampler's `arp/PatternModel`.

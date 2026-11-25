@@ -39,10 +39,7 @@ add_library(AcidEngine STATIC
     src/dsp/Lfo.cpp
     src/dsp/ToneStack.cpp
     src/dsp/MultibandTube.cpp
-    src/dsp/Echo.cpp
-    src/seq/Pattern.cpp
-    src/seq/Sequencer.cpp
-    src/seq/PatternTools.cpp)
+    src/dsp/Echo.cpp)
 target_include_directories(AcidEngine PUBLIC src)
 set_target_properties(AcidEngine PROPERTIES POSITION_INDEPENDENT_CODE ON)
 if(MSVC)
@@ -93,13 +90,29 @@ if(ACID_BUILD_PLUGIN)
         src/PluginProcessor.cpp
         src/PluginEditor.cpp
         src/Parameters.cpp
-        src/seq/MidiExport.cpp
+        src/arp/ArpEngine.cpp
+        src/arp/NoteOrder.cpp
+        src/arp/Scales.cpp
+        src/arp/Randomiser.cpp
+        src/arp/PatternModel.cpp
+        src/arp/import/PatternImport.cpp
+        src/arp/import/AudioToNotes.cpp
+        src/arp/import/PitchDetector.cpp
+        src/arp/export/MidiRenderer.cpp
+        src/arp/browser/SampleLibrary.cpp
+        src/arp/browser/FolderScanner.cpp
         src/presets/PresetManager.cpp
         src/presets/FactoryPresets.cpp
         src/ui/LookAndFeel.cpp
         src/ui/Knob.cpp
         src/ui/Widgets.cpp
-        src/ui/StepGrid.cpp
+        src/ui/arp/ArpStepGrid.cpp
+        src/ui/arp/BrowserPanel.cpp
+        src/ui/arp/DragMidiHandle.cpp
+        src/ui/arp/Controls.cpp
+        src/ui/arp/VirusWidgets.cpp
+        src/ui/pages/SequencerPage.cpp
+        src/ui/pages/SeqPanel.cpp
         src/ui/BandGraph.cpp
         src/ui/TubeView.cpp
         src/ui/pages/SynthPage.cpp
@@ -108,6 +121,7 @@ if(ACID_BUILD_PLUGIN)
 
     target_compile_definitions(${ACID_TARGET} PUBLIC
         ACID_PRODUCT_NAME="${ACID_PLUGIN_NAME}"
+        JUCE_USE_MP3AUDIOFORMAT=1
         JUCE_WEB_BROWSER=0
         JUCE_USE_CURL=0
         JUCE_VST3_CAN_REPLACE_VST2=0
@@ -117,6 +131,7 @@ if(ACID_BUILD_PLUGIN)
         PRIVATE
             AcidEngine
             juce::juce_audio_utils
+            juce::juce_audio_formats
         PUBLIC
             juce::juce_recommended_config_flags
             juce::juce_recommended_lto_flags
@@ -134,12 +149,29 @@ if(ACID_BUILD_TESTS)
 
     add_executable(AcidTests
         tests/TestDsp.cpp
-        tests/TestSequencer.cpp
         tests/TestTube.cpp)
     target_link_libraries(AcidTests PRIVATE AcidEngine Catch2::Catch2WithMain)
 
     enable_testing()
     add_test(NAME AcidTests COMMAND AcidTests)
+
+    # The sequencer (from ArpSampler) uses JUCE's core / MIDI classes, so it has its own test app.
+    if(ACID_BUILD_PLUGIN)
+        juce_add_console_app(AcidSeqTests PRODUCT_NAME "AcidSeqTests")
+        target_sources(AcidSeqTests PRIVATE
+            tests/TestArpSequencer.cpp
+            src/arp/ArpEngine.cpp
+            src/arp/NoteOrder.cpp
+            src/arp/Scales.cpp
+            src/arp/Randomiser.cpp
+            src/arp/import/PatternImport.cpp
+            src/arp/export/MidiRenderer.cpp
+            src/presets/FactoryPresets.cpp)
+        target_include_directories(AcidSeqTests PRIVATE src)
+        target_compile_definitions(AcidSeqTests PRIVATE ACID_PRODUCT_NAME="${ACID_PLUGIN_NAME}" JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0)
+        target_link_libraries(AcidSeqTests PRIVATE juce::juce_audio_basics juce::juce_core Catch2::Catch2WithMain)
+        add_test(NAME AcidSeqTests COMMAND AcidSeqTests)
+    endif()
 endif()
 
 # ------------------------------------------------------------------------------

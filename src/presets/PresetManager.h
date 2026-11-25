@@ -41,6 +41,7 @@ public:
 
 private:
     void resetAllParameters();
+    static bool keepsItsValue (const juce::String& id);
     void applyParameter (const juce::String& id, float value);
 
     AcidAudioProcessor& processor;

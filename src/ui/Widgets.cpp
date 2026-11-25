@@ -220,14 +220,13 @@ void HelpOverlay::paint (Graphics& g)
 
     const char* lines[] =
     {
-        "SYNTH:  oscillator (Saw / Square, Retro drift), diode or transistor ladder filter, envelope with Accent and Acc Sweep.",
-        "CUTOFF LOW:  the floor the filter envelope falls back to. At or above CUTOFF the filter behaves classically.",
-        "ACC SWEEP:  consecutive accented notes push the cutoff higher and higher (the accent 'wow' circuit).",
-        "SEQUENCER:  plays with the host transport, or press PLAY. SEQ off = play the synth from MIDI (overlapping notes slide).",
-        "KEY:  a held MIDI key transposes the pattern (relative to C) and gates it.",
-        "GRID:  click a note cell to set the step's note, drag to paint. Click the rows below to toggle Up / Down / Accent / Slide,",
-        "         Ratchet cycles 1-4 hits, Gate cycles Note / Rest / Tie. Right-click a note cell = rest.",
-        "TOOLS:  Random (with scale and root), Mutate, Clear, rotate, Copy / Paste, Undo / Redo, MIDI export / import.",
+        "SYNTH:  oscillator (Saw / Square, Retro), diode or transistor ladder filter, envelope with Accent and Acc Sweep.",
+        "ARPEGGIATOR:  Step mode plays the step sequence from the key you hold (Auto Play: from the Key's root while the host plays).",
+        "    Other modes arpeggiate the held keys. Arp off = the keys play the synth directly (overlapping notes slide).",
+        "STEP SEQUENCER:  Volume (bottom = rest), Velocity, Transpose, Ratchet, Accent and Tie lanes. A Tie to a new pitch",
+        "    glides over the GLIDE time. Length 16 / 32, End, Undo / Redo, Clear, Import (MIDI or audio) or drop a file on the grid.",
+        "RANDOMISE:  Density, Range, Tie, Ratch, Acc, Vel Lo / Hi, with locks. Scale Lock keeps every step in the Key and Scale.",
+        "SEQUENCE BROWSER:  MIDI and audio files straight into the steps. DRAG MIDI drops the pattern into your DAW.",
         "LAYERS:  second oscillator, unison, amp envelope, echo (filters inside the loop) and two LFOs.",
         "TUBE:  three-band tube distortion. Drag band edges for the crossovers and band centres for the gain.",
         "Knobs move in whole steps (drag or mouse wheel, one notch = 1). Double-click = default. Drag the corner to resize.",

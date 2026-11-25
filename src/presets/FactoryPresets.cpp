@@ -1,25 +1,82 @@
 #include "FactoryPresets.h"
+#include "../arp/ArpParameters.h"
 #include <algorithm>
 #include <cctype>
 #include <sstream>
 
 namespace acid
 {
-Pattern patternFromNotation (const char* text)
+namespace
 {
-    Pattern p;
+    // One step of the original Acid sequencer.
+    struct AcidStep
+    {
+        int note = 0, octave = 0, ratchet = 0;
+        bool accent = false, slide = false;
+        enum Kind { Note, Rest, Tie } kind = Note;
+    };
+
+    ConvertedPattern convert (const std::vector<AcidStep>& steps)
+    {
+        ConvertedPattern out;
+        const int n = std::min ((int) steps.size(), (int) as::kMaxSteps);
+        out.length = std::max (1, n);
+
+        for (int i = 0; i < n; ++i)
+        {
+            const auto& a = steps[(size_t) i];
+            auto& s = out.pattern.steps[(size_t) i];
+            s.velocity = 100;
+            s.ratchet = std::clamp (a.ratchet + 1, 1, as::arp::kMaxRatchet);
+            s.accent = a.accent;
+
+            if (a.kind == AcidStep::Rest)
+            {
+                s.volume = 0;
+                continue;
+            }
+            if (a.kind == AcidStep::Tie)
+            {
+                // holds the previous note: the previous step ties into this one at the same pitch
+                if (i == 0 || out.pattern.steps[(size_t) i - 1].isRest())
+                {
+                    s.volume = 0;
+                    continue;
+                }
+                out.pattern.steps[(size_t) i - 1].tie = true;
+                s.transpose = out.pattern.steps[(size_t) i - 1].transpose;
+                s.ratchet = 1;
+            }
+            else
+            {
+                s.transpose = std::clamp (a.note + 12 * a.octave, -24, 24);
+            }
+            s.volume = 127;
+            s.tie = a.slide;      // a slide glides into the next step: the sequencer's Tie
+        }
+
+        // a slide into a rest doesn't glide anywhere
+        for (int i = 0; i < n; ++i)
+            if (out.pattern.steps[(size_t) i].tie && (i + 1 >= n || out.pattern.steps[(size_t) i + 1].isRest()))
+                out.pattern.steps[(size_t) i].tie = false;
+        return out;
+    }
+}
+
+ConvertedPattern patternFromNotation (const char* text)
+{
+    std::vector<AcidStep> steps;
     std::istringstream in (text);
     std::string tok;
-    int count = 0;
 
-    while (in >> tok && count < kMaxSteps)
+    while (in >> tok && (int) steps.size() < as::kMaxSteps)
     {
-        Step st;
+        AcidStep st;
         size_t i = 0;
         const char c = (char) std::toupper ((unsigned char) tok[0]);
 
-        if (c == '-')      { st.gate = Gate::Rest; i = 1; }
-        else if (c == '_') { st.gate = Gate::Tie;  i = 1; }
+        if (c == '-')      { st.kind = AcidStep::Rest; i = 1; }
+        else if (c == '_') { st.kind = AcidStep::Tie;  i = 1; }
         else
         {
             static const int semis[] = { 9, 11, 0, 2, 4, 5, 7 };   // A B C D E F G
@@ -27,28 +84,53 @@ Pattern patternFromNotation (const char* text)
             i = 1;
             if (i < tok.size() && tok[i] == '#') { ++n; ++i; }
             if (i < tok.size() && tok[i] == '\'') { n = 12; ++i; }
-            st.note = (uint8_t) std::clamp (n, 0, 12);
+            st.note = std::clamp (n, 0, 12);
         }
 
         for (; i < tok.size(); ++i)
         {
             switch (tok[i])
             {
-                case '^': st.octave = (int8_t) std::min (2, st.octave + 1); break;
-                case 'v': st.octave = (int8_t) std::max (-2, st.octave - 1); break;
+                case '^': st.octave = std::min (2, st.octave + 1); break;
+                case 'v': st.octave = std::max (-2, st.octave - 1); break;
                 case '!': st.accent = true; break;
                 case '~': st.slide = true; break;
                 case 'x':
                     if (i + 1 < tok.size() && std::isdigit ((unsigned char) tok[i + 1]))
-                        st.ratchet = (uint8_t) std::clamp (tok[++i] - '1', 0, kMaxRatchet);
+                        st.ratchet = std::clamp (tok[++i] - '1', 0, 3);
                     break;
                 default: break;
             }
         }
-        p.steps[(size_t) count++] = st;
+        steps.push_back (st);
     }
-    p.length = std::max (1, count);
-    return p;
+    return convert (steps);
+}
+
+ConvertedPattern patternFromLegacyString (const std::string& s)
+{
+    const auto colon = s.find (':');
+    if (colon == std::string::npos)
+        return {};
+
+    int length = 16;
+    try { length = std::clamp (std::stoi (s.substr (0, colon)), 1, 64); }
+    catch (...) { return {}; }
+
+    auto hexValue = [] (char c) { return c >= '0' && c <= '9' ? c - '0' : (c >= 'a' && c <= 'f' ? c - 'a' + 10 : 0); };
+    std::vector<AcidStep> steps;
+    for (size_t pos = colon + 1; pos + 6 <= s.size() && (int) steps.size() < std::min (length, (int) as::kMaxSteps); pos += 6)
+    {
+        AcidStep st;
+        st.note    = std::clamp (hexValue (s[pos]), 0, 12);
+        st.octave  = std::clamp (s[pos + 1] - '0' - 2, -2, 2);
+        st.accent  = s[pos + 2] == '1';
+        st.slide   = s[pos + 3] == '1';
+        st.ratchet = std::clamp (s[pos + 4] - '0', 0, 3);
+        st.kind    = s[pos + 5] == 'R' ? AcidStep::Rest : (s[pos + 5] == 'T' ? AcidStep::Tie : AcidStep::Note);
+        steps.push_back (st);
+    }
+    return convert (steps);
 }
 
 namespace
@@ -79,73 +161,73 @@ const std::vector<FactoryPreset>& factoryPresets()
     {
         { "Squelch Classic", "CLASSIC",
           P { { "cutoff", 40 }, { "resonance", 78 }, { "envMod", 62 }, { "decay", 45 }, { "accent", 70 }, { "accSweep", 50 } },
-          { kRoller, kRoller2, kStabby, kWalker } },
+          kRoller },
         { "Rubber Bassline", "CLASSIC",
-          P { { "wave", 1 }, { "cutoff", 34 }, { "resonance", 55 }, { "envMod", 42 }, { "decay", 32 }, { "gate", 60 } },
-          { kSquare, kWalker } },
+          P { { "wave", 1 }, { "cutoff", 34 }, { "resonance", 55 }, { "envMod", 42 }, { "decay", 32 }, { "arpGate", 60 } },
+          kSquare },
         { "Acid Rain", "CLASSIC",
           P { { "cutoff", 30 }, { "resonance", 88 }, { "envMod", 78 }, { "accSweep", 72 }, { "accent", 80 },
               { "lfo1Rate", 19 }, { "lfo1Depth", 18 } },
-          { kRoller2, kRoller } },
+          kRoller2 },
         { "Dub Chamber", "DUB",
           P { { "cutoff", 30 }, { "resonance", 62 }, { "envMod", 45 }, { "echoMix", 34 }, { "echoFeedback", 72 },
               { "echoTime", 63 }, { "echoWidth", 100 }, { "echoLowCut", 42 }, { "echoHighCut", 30 } },
-          { kDeep, kMinimal } },
+          kDeep },
         { "Siren Line", "DUB",
           P { { "cutoff", 48 }, { "resonance", 70 }, { "lfo2Dest", 1 }, { "lfo2Depth", 4 }, { "lfo2Rate", 87 },
               { "echoMix", 28 }, { "echoFeedback", 60 } },
-          { kSirens } },
+          kSirens },
         { "Hard Floor", "HARD",
           P { { "cutoff", 38 }, { "resonance", 82 }, { "envMod", 70 }, { "drive", 55 }, { "accent", 85 },
               { "tubeLowDrive", 70 }, { "tubeMidDrive", 75 }, { "tubeHighDrive", 55 }, { "tubeOutput", -5 }, { "volume", -4 } },
-          { kHard, kRoller } },
+          kHard },
         { "Distorted Ravelines", "HARD",
           P { { "cutoff", 42 }, { "resonance", 80 }, { "drive", 60 }, { "tubeResonator", 60 }, { "tubeCharacter", 70 },
               { "tubeMidDrive", 85 }, { "tubeMidGain", 4 }, { "tubeOutput", -6 }, { "volume", -8 } },
-          { kHard, kRatchet } },
+          kHard },
         { "Deep Minimal", "DEEP",
-          P { { "cutoff", 26 }, { "resonance", 50 }, { "envMod", 40 }, { "decay", 25 }, { "gate", 35 }, { "echoMix", 20 } },
-          { kMinimal, kDeep } },
+          P { { "cutoff", 26 }, { "resonance", 50 }, { "envMod", 40 }, { "decay", 25 }, { "arpGate", 35 }, { "echoMix", 20 } },
+          kMinimal },
         { "Square Funk", "CLASSIC",
           P { { "wave", 1 }, { "cutoff", 44 }, { "resonance", 60 }, { "slideTime", 80 }, { "envMod", 50 } },
-          { kSquare, kStabby } },
+          kSquare },
         { "Unison Monster", "ACID",
           P { { "unisonVoices", 6 }, { "unisonSpread", 50 }, { "oscBLevel", 40 }, { "oscBTune", -12 },
               { "cutoff", 36 }, { "resonance", 70 }, { "tubeLowDrive", 50 }, { "volume", -4 } },
-          { kRoller, kOctaves } },
+          kRoller },
         { "Transistor Scream", "ACID",
           P { { "transistor", 1 }, { "cutoff", 42 }, { "resonance", 80 }, { "envMod", 60 }, { "drive", 35 }, { "volume", -12 } },
-          { kRoller2, kHard } },
+          kRoller2 },
         { "Retro Box", "CLASSIC",
           P { { "retro", 1 }, { "cutoff", 41 }, { "resonance", 72 }, { "drive", 5 }, { "echoOn", 0 } },
-          { kRoller, kWalker } },
+          kRoller },
         { "Ping-Pong Acid", "DUB",
           P { { "cutoff", 40 }, { "resonance", 74 }, { "echoWidth", 100 }, { "echoMix", 26 }, { "echoFeedback", 55 } },
-          { kStabby, kRoller } },
+          kStabby },
         { "Wobble Acid", "ACID",
           P { { "cutoff", 35 }, { "resonance", 75 }, { "lfo1Rate", 67 }, { "lfo1Depth", 35 }, { "lfo1Retrig", 2 } },
-          { kWalker, kRoller2 } },
+          kWalker },
         { "Tremolo Gate", "ACID",
           P { { "cutoff", 44 }, { "resonance", 66 }, { "lfo2Dest", 4 }, { "lfo2Shape", 4 }, { "lfo2Rate", 87 },
               { "lfo2Depth", 70 }, { "lfo2Retrig", 2 } },
-          { kLong } },
+          kLong },
         { "Slow Sweep", "DEEP",
           P { { "cutoff", 28 }, { "resonance", 76 }, { "envMod", 35 }, { "lfo1Shape", 2 }, { "lfo1Rate", 7 },
               { "lfo1Depth", 50 }, { "lfo1Retrig", 2 }, { "lfo1Mirror", 1 } },
-          { kLong, kRoller } },
+          kLong },
         { "Ratchet Run", "HARD",
-          P { { "cutoff", 40 }, { "resonance", 78 }, { "drive", 30 }, { "gate", 45 }, { "volume", -3 } },
-          { kRatchet, kStabby } },
+          P { { "cutoff", 40 }, { "resonance", 78 }, { "drive", 30 }, { "arpGate", 45 }, { "volume", -3 } },
+          kRatchet },
         { "Octave Jumper", "ACID",
           P { { "cutoff", 39 }, { "resonance", 70 }, { "slideTime", 45 }, { "accSweep", 60 } },
-          { kOctaves, kPhrygian } },
+          kOctaves },
         { "Swing Acid", "CLASSIC",
-          P { { "cutoff", 41 }, { "resonance", 73 }, { "swing", 40 }, { "envMod", 58 } },
-          { kSwingy, kRoller } },
+          P { { "cutoff", 41 }, { "resonance", 73 }, { "arpSwing", 53 }, { "envMod", 58 } },
+          kSwingy },
         { "Night Drive", "DEEP",
-          P { { "seqRate", 0 }, { "cutoff", 30 }, { "resonance", 68 }, { "decay", 70 }, { "accDecay", 55 },
+          P { { "arpRate", 2 }, { "cutoff", 30 }, { "resonance", 68 }, { "decay", 70 }, { "accDecay", 55 },
               { "echoMix", 30 }, { "echoFeedback", 64 }, { "echoTime", 69 } },
-          { kNight, kPhrygian } },
+          kNight },
     };
     return list;
 }

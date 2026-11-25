@@ -93,8 +93,8 @@ void LayersPage::paint (Graphics& g)
     AcidLookAndFeel::drawPanel (g, { 264.0f, 0.0f, 290.0f, 150.0f }, "Unison");
     AcidLookAndFeel::drawPanel (g, { 560.0f, 0.0f, 432.0f, 150.0f }, "Amp Envelope");
     AcidLookAndFeel::drawPanel (g, { 8.0f, 156.0f, 984.0f, 150.0f }, "Echo");
-    AcidLookAndFeel::drawPanel (g, { 8.0f, 312.0f, 489.0f, 278.0f }, "LFO 1");
-    AcidLookAndFeel::drawPanel (g, { 503.0f, 312.0f, 489.0f, 278.0f }, "LFO 2");
+    AcidLookAndFeel::drawPanel (g, { 8.0f, 312.0f, 489.0f, (float) getHeight() - 312.0f }, "LFO 1");
+    AcidLookAndFeel::drawPanel (g, { 503.0f, 312.0f, 489.0f, (float) getHeight() - 312.0f }, "LFO 2");
 
     AcidLookAndFeel::drawSmallLabel (g, "Phase Mode", { 280.0f, 42.0f, 86.0f, 12.0f }, Justification::centredLeft);
     for (int i = 0; i < 2; ++i)

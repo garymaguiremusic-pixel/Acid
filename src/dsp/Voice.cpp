@@ -67,9 +67,10 @@ void Voice::setSettings (const VoiceSettings& s)
     }
 }
 
-void Voice::noteOn (int midiNote, bool accent, bool legato)
+void Voice::noteOn (int midiNote, bool accent, bool legato, float level)
 {
     targetNote = (float) midiNote;
+    levelTarget = clampf (level, 0.0f, 1.0f);
     accentNote = accent;
 
     if (accent)
@@ -79,6 +80,8 @@ void Voice::noteOn (int midiNote, bool accent, bool legato)
         return;   // slide: the pitch glides, the envelopes carry on
 
     currentNote = targetNote;
+    if (! ampEnv.isActive())
+        levelSm = levelTarget;      // a fresh note starts at its own level (no fade from the last one)
     filterEnv.trigger (set.envAttackMs, accent ? set.accDecayMs : set.decayMs);
     ampEnv.gateOn();
     gate = true;
@@ -174,7 +177,8 @@ void Voice::render (float* left, float* right, int numSamples, const VoiceMod& m
 
         const float reso = clampf (smRes + (mod.resonance ? mod.resonance[m] : 0.0f), 0.0f, 1.0f);
         const float morph = clampf (smMorph + (mod.wave ? mod.wave[m] : 0.0f), 0.0f, 1.0f);
-        float vca = amp * (1.0f + 0.9f * accentPulse);
+        levelSm += (levelTarget - levelSm) * smoothCoef;
+        float vca = amp * levelSm * (1.0f + 0.9f * accentPulse);
         if (mod.volume) vca *= mod.volume[m];
 
         // --- oversampled audio ---------------------------------------------------------

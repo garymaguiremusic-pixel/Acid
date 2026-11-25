@@ -20,11 +20,13 @@ jobs:
 
       - name: Build VST3 and tests
         shell: bash
-        run: cmake --build build --config Release --target Acid_VST3 AcidTests --parallel 2>&1 | tee build.log; exit ${PIPESTATUS[0]}
+        run: cmake --build build --config Release --target Acid_VST3 AcidTests AcidSeqTests --parallel 2>&1 | tee build.log; exit ${PIPESTATUS[0]}
 
       - name: Unit tests
         shell: bash
-        run: ./build/Release/AcidTests.exe --reporter compact
+        run: |
+          ./build/Release/AcidTests.exe --reporter compact
+          ./build/AcidSeqTests_artefacts/Release/AcidSeqTests.exe --reporter compact
 
       - name: Validate with pluginval (strictness 10)
         shell: bash
@@ -71,10 +73,12 @@ jobs:
         run: cmake -B build -G Xcode -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" -DCMAKE_OSX_DEPLOYMENT_TARGET=10.13 -DACID_BUILD_TESTS=ON 2>&1 | tee configure.log; exit ${PIPESTATUS[0]}
 
       - name: Build VST3, AU and tests
-        run: cmake --build build --config Release --target Acid_VST3 Acid_AU AcidTests -- -quiet 2>&1 | tee build.log; exit ${PIPESTATUS[0]}
+        run: cmake --build build --config Release --target Acid_VST3 Acid_AU AcidTests AcidSeqTests -- -quiet 2>&1 | tee build.log; exit ${PIPESTATUS[0]}
 
       - name: Unit tests
-        run: ./build/Release/AcidTests --reporter compact
+        run: |
+          ./build/Release/AcidTests --reporter compact
+          ./build/AcidSeqTests_artefacts/Release/AcidSeqTests --reporter compact
 
       # Ad-hoc signs the plugins (Apple Silicon refuses unsigned code), checks they are
       # universal, and wraps them in an installer. Plugins put in place by Installer

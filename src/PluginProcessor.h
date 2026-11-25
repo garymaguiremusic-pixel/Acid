@@ -1,55 +1,28 @@
 #pragma once
 
 #include <juce_audio_processors/juce_audio_processors.h>
+#include <bitset>
+#include <optional>
 #include "Parameters.h"
 #include "dsp/Voice.h"
 #include "dsp/Lfo.h"
 #include "dsp/ToneStack.h"
 #include "dsp/MultibandTube.h"
 #include "dsp/Echo.h"
-#include "seq/Sequencer.h"
-#include "seq/Pattern.h"
-#include "seq/PatternTools.h"
+#include "arp/ArpEngine.h"
+#include "arp/PatternModel.h"
+#include "arp/Randomiser.h"
+#include "arp/MidiNoteWriter.h"
+#include "arp/export/MidiRenderer.h"
+#include "arp/import/PatternImport.h"
+#include "arp/browser/SampleLibrary.h"
+#include "ui/arp/BrowserPanel.h"
 #include "presets/PresetManager.h"
 
 //==============================================================================
-/** Lock-free hand-over of the pattern bank from the message thread to the audio
-    thread (triple buffer: neither side ever waits). */
-class PatternExchange
-{
-public:
-    PatternExchange()
-    {
-        for (auto& b : banks)
-            for (auto& p : b)
-                p = acid::makeDefaultPattern();
-    }
-
-    /** Message thread. */
-    void publish (const acid::PatternBank& bank)
-    {
-        banks[(size_t) back] = bank;
-        back = middle.exchange (back | kDirty) & kIndexMask;
-    }
-
-    /** Audio thread. */
-    const acid::PatternBank& read() noexcept
-    {
-        if (middle.load() & kDirty)
-            front = middle.exchange (front) & kIndexMask;
-        return banks[(size_t) front];
-    }
-
-private:
-    static constexpr int kDirty = 4, kIndexMask = 3;
-    std::array<acid::PatternBank, 3> banks;
-    std::atomic<int> middle { 1 };
-    int front = 0, back = 2;
-};
-
-//==============================================================================
 class AcidAudioProcessor : public juce::AudioProcessor,
-                           private juce::AudioProcessorValueTreeState::Listener
+                           private juce::AudioProcessorValueTreeState::Listener,
+                           private juce::AsyncUpdater
 {
 public:
     AcidAudioProcessor();
@@ -67,7 +40,7 @@ public:
 
     const juce::String getName() const override     { return JucePlugin_Name; }
     bool acceptsMidi() const override               { return true; }
-    bool producesMidi() const override              { return true; }
+    bool producesMidi() const override              { return true; }    // MIDI Out
     bool isMidiEffect() const override              { return false; }
     double getTailLengthSeconds() const override    { return 4.0; }
 
@@ -83,40 +56,44 @@ public:
     juce::AudioProcessorValueTreeState apvts;
 
     //==============================================================================
-    // Patterns (message thread)
-    int getCurrentSlot() const;
-    const acid::Pattern& getPattern (int slot) const    { return bank[(size_t) juce::jlimit (0, acid::kNumPatterns - 1, slot)]; }
-    const acid::PatternBank& getBank() const            { return bank; }
+    // Sequencer (the ArpSampler arpeggiator + step sequencer), message thread
+    as::arp::PatternModel& getPatternModel() noexcept   { return patternModel; }
 
-    /** Edits a pattern slot (with undo) and hands the change to the audio thread. */
-    void editPattern (int slot, const std::function<void (acid::Pattern&)>& edit, bool undoable = true);
-    void setBank (const acid::PatternBank& newBank);    // presets: no undo
+    /** Replaces the pattern (undoable) and sets Length / End for 'length' steps (presets). */
+    void setPattern (const as::arp::Pattern&, int length);
+    /** Restores a saved pattern tree (user presets). */
+    void restorePattern (const juce::ValueTree&);
 
-    void undoPattern();
-    void redoPattern();
-    bool canUndoPattern() const { return patternUndo.canUndo(); }
-    bool canRedoPattern() const { return patternUndo.canRedo(); }
-    void copyPattern();
-    void pastePattern();
-    bool hasClipboard() const   { return clipboardValid; }
-    void randomisePattern (acid::PatternTools::RandomMode);
-    void mutatePattern();
-    void rotatePattern (int direction);
-    void clearPattern();
+    void randomisePattern (std::optional<juce::uint32> seed = std::nullopt);
+    as::arp::RandomiseSettings readRandomiseSettings() const;
+    int quantiseEditedTranspose (int transpose) const    { return transpose; }   // scale steps are always in key
+    as::arp::Pattern makeEmptyPattern() const;
 
-    int randomRoot = 9;         // A
-    int randomScale = 1;        // Minor
+    struct ImportChoices
+    {
+        int startBar = 1;           // 1-based bar of the file the steps start from
+        bool topNote = true;        // chords: keep the top note
+    };
+    ImportChoices& getImportChoices() noexcept          { return importChoices; }
+    as::import::ImportOptions makeImportOptions() const;
+    int applyImport (const std::vector<as::import::ImportedNote>&, bool lockToScale = false);
 
-    /** Changes every time the patterns change (the editor polls it to repaint). */
-    std::atomic<int> patternVersion { 0 };
+    SampleLibrary& getSequenceLibrary() noexcept        { return *sequenceLibrary; }
+    BrowserPanel::State& getSequenceBrowserState() noexcept { return sequenceBrowserState; }
+    bool isSequenceBrowserOpen() const noexcept         { return sequenceBrowserOpen; }
+    void setSequenceBrowserOpen (bool open) noexcept    { sequenceBrowserOpen = open; }
+    juce::File getCurrentSequenceFile() const           { return currentSequence; }
+    void setCurrentSequenceFile (const juce::File& f)   { currentSequence = f; }
+
+    as::exporter::ExportRequest buildExportRequest() const;
+    juce::File exportMidiToTempFile() const;
+    std::vector<as::arp::HeldNote> getLastHeldNotes() const;
+
+    int getCurrentStep() const noexcept                 { return gui.currentStep.load(); }
+    float getTempo() const noexcept                     { return gui.bpm.load(); }
+    bool isTempoFromHost() const noexcept               { return gui.hostTempo.load(); }
 
     //==============================================================================
-    // Transport / misc (message thread)
-    void setInternalPlay (bool shouldPlay)  { internalPlayRequest.store (shouldPlay); }
-    bool isInternalPlayOn() const           { return internalPlayRequest.load(); }
-    std::atomic<bool> midiOutEnabled { true };
-
-    /** Sets a parameter as one complete host gesture. */
     void setParameterValue (const juce::String& id, float value);
     float getParameterValue (const juce::String& id) const;
 
@@ -128,7 +105,7 @@ public:
     bool canUndoTube() const { return ! tubeUndo.empty(); }
     bool canRedoTube() const { return ! tubeRedo.empty(); }
 
-    /** Header Clear: every sound parameter back to its default (patterns stay). */
+    /** Header Clear: every sound parameter back to its default (the pattern stays). */
     void initSound();
 
     acid::PresetManager presets;
@@ -140,6 +117,7 @@ public:
         std::atomic<int>   currentStep { -1 };
         std::atomic<bool>  running { false };
         std::atomic<bool>  hostPlaying { false };
+        std::atomic<bool>  hostTempo { false };
         std::atomic<float> bpm { 120.0f };
         std::atomic<float> filterEnv { 0.0f };
         std::atomic<float> accentCharge { 0.0f };
@@ -155,17 +133,30 @@ public:
 
 private:
     void parameterChanged (const juce::String& id, float newValue) override;
+    void handleAsyncUpdate() override;
+    void syncPatternUnits();
     void updateSettings() noexcept;
-    void processChunk (float* left, float* right, int numSamples, int chunkStart,
-                       const juce::MidiBuffer& midiIn, juce::MidiBuffer& midiOut,
-                       const acid::Pattern& pattern) noexcept;
-    void applyVoiceEvent (const acid::SeqEvent&, bool fromSequencer, juce::MidiBuffer& midiOut, int sampleInBlock) noexcept;
-    void computeModulation (int start, int end) noexcept;
-    double ppqAt (int sampleInBlock) const noexcept;
+    as::arp::ArpSettings readArpSettings() const noexcept;
+    as::arp::TransportInfo readTransport() noexcept;
+    void renderVoice (float* left, float* right, int from, int to) noexcept;
+    void computeModulation (int sampleInBlock, int numSamples) noexcept;
+    void applyArpEvent (const as::arp::NoteEvent&) noexcept;
+    void handleDirectMidi (const juce::MidiMessage&) noexcept;
+    void passThrough (const juce::MidiMessage&, int time) noexcept;
+    void publishHeldNotes() noexcept;
     void pushTubeUndo();
     std::vector<float> captureTube() const;
     void restoreTube (const std::vector<float>&);
     static juce::StringArray tubeParameterIds();
+
+    template <typename Send>
+    void releaseThruNotes (int time, Send&& send) noexcept
+    {
+        for (int n = 0; n < 128; ++n)
+            if (thruNotes[(size_t) n])
+                send (juce::MidiMessage::noteOff (juce::jmax (1, (int) thruChannels[(size_t) n]), n), time);
+        thruNotes.reset();
+    }
 
     // DSP
     acid::Voice voice;
@@ -173,37 +164,43 @@ private:
     acid::ToneStack tone;
     acid::MultibandTube tube;
     acid::Echo echo;
-    acid::Sequencer sequencer;
     juce::SmoothedValue<float> masterGain;
 
     static constexpr int kChunk = 512;
     float lfoBuf[2][kChunk] {};
     float modCutoff[kChunk] {}, modPitch[kChunk] {}, modWave[kChunk] {}, modReso[kChunk] {}, modVolume[kChunk] {};
     acid::VoiceMod voiceMod;
-    acid::SeqEvent seqEvents[acid::Sequencer::kMaxEvents];
+
+    // Sequencer
+    as::arp::PatternExchange patternExchange;
+    as::arp::PatternModel patternModel { patternExchange };
+    as::arp::ArpEngine arp;
+    as::arp::EventList arpEvents;
+    bool arpWasEnabled = false;
+    int voiceArpId = 0;            // the arp note the (mono) voice is playing (0 = none)
+
+    // MIDI Out
+    as::arp::MidiNoteWriter midiWriter;
+    juce::MidiBuffer midiOutBuffer;
+    std::bitset<128> thruNotes;
+    std::array<juce::uint8, 128> thruChannels {};
+    bool midiOutWasOn = false;
 
     // block state
     double sampleRate = 44100.0;
-    double blockPpq = 0.0, ppqPerSample = 0.0, internalPpq = 0.0, internalBlockStart = 0.0;
-    double bpm = 120.0;
-    bool hostPlaying = false, internalRunning = false, keyClockRunning = false;
-    int chunkOffset = 0;
+    double blockPpq = 0.0, ppqPerSample = 0.0, bpm = 120.0;
+    bool hostPlaying = false;
 
-    // MIDI note stacks (direct play / key mode)
-    std::array<int, 16> heldNotes {}, heldKeys {};
-    int numHeldNotes = 0, numHeldKeys = 0;
-    int midiOutNote = -1;
-    bool directVoiceActive = false;
+    // direct play (arp off): last-note priority, overlapping notes slide
+    std::array<int, 16> heldNotes {};
+    int numHeldNotes = 0;
 
-    std::atomic<bool> internalPlayRequest { false };
-    bool internalPlayState = false;
-
-    // cached parameter pointers (audio thread reads these)
     struct ParamPointers
     {
         std::atomic<float> *tune, *volume, *echoOn, *tubeOn, *wave, *retro, *cutoffLow, *cutoff, *resonance,
-            *transistor, *bass, *treble, *drive, *envMod, *decay, *accent, *gate, *envAttack, *accDecay, *accSweep,
-            *seqOn, *keyMode, *seqRate, *swing, *slideTime, *direction, *transpose, *pattern,
+            *transistor, *bass, *treble, *drive, *envMod, *decay, *accent, *envAttack, *accDecay, *accSweep, *slideTime,
+            *arpOn, *arpMode, *arpRate, *arpRateType, *arpGate, *arpSwing, *arpOctave, *velMode, *bpm, *autoPlay,
+            *midiOut, *seqLength, *seqEnd, *scaleKey, *scale, *scaleLock,
             *oscBLevel, *oscBTune, *oscBDetune, *unisonVoices, *unisonSpread, *unisonFree,
             *ampAttack, *ampDecay, *ampRelease, *echoSync, *echoTime, *echoMix, *echoFeedback, *echoLowCut,
             *echoHighCut, *echoWidth, *tubeEdges[4], *tubeResonator, *tubeCharacter, *tubeInput, *tubeOutput, *tubeMix;
@@ -213,13 +210,21 @@ private:
     float lfoDepthNow[2] {};
     int lfoDestNow[2] {};
 
-    // patterns
-    acid::PatternBank bank;
-    PatternExchange exchange;
-    acid::PatternUndoStack patternUndo;
-    acid::Pattern clipboard;
-    bool clipboardValid = false;
-    uint32_t randomSeed = 1;
+    // Sequencer extras (message thread)
+    ImportChoices importChoices;
+    juce::SharedResourcePointer<SequenceLibrary> sequenceLibrary;
+    BrowserPanel::State sequenceBrowserState;
+    bool sequenceBrowserOpen = false;
+    juce::File currentSequence;
+    juce::uint32 randomSeed = 1;
+    std::atomic<bool> restoringState { false };
+
+    // last held keys, written by the audio thread with a seqlock (for Drag MIDI's Auto root)
+    std::atomic<juce::uint32> heldVersion { 0 };
+    std::atomic<int> heldCount { 0 };
+    std::array<std::atomic<int>, as::arp::kMaxHeld> heldNotesPublished {}, heldVelocities {};
+    std::array<as::arp::HeldNote, as::arp::kMaxHeld> lastPublishedHeld {};
+    int lastPublishedCount = 0;
 
     // tube undo
     std::vector<std::vector<float>> tubeUndo, tubeRedo;

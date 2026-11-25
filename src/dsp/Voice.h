@@ -65,8 +65,9 @@ public:
     void reset();
     void setSettings (const VoiceSettings& s);
 
-    /** legato = slide: glide to the new pitch without retriggering the envelopes. */
-    void noteOn (int midiNote, bool accent, bool legato);
+    /** legato = slide: glide to the new pitch without retriggering the envelopes.
+        level (0..1) scales the note's loudness (the sequencer's velocity x Volume). */
+    void noteOn (int midiNote, bool accent, bool legato, float level = 1.0f);
     void noteOff();
     bool isGateOn() const noexcept { return gate; }
 
@@ -106,6 +107,7 @@ private:
     float unisonDetune[kMaxUnison] {}, unisonGainL[kMaxUnison] {}, unisonGainR[kMaxUnison] {};
     float smLow = 0.0f, smPeak = 0.0f, smRes = 0.0f, smMorph = 0.0f, smoothCoef = 1.0f;
     bool smoothersPrimed = false;
+    float levelTarget = 1.0f, levelSm = 1.0f;
     int activeVoices = 1;
     bool stereo = false;
 };

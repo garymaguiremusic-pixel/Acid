@@ -13,7 +13,10 @@
 //==============================================================================
 namespace acid
 {
-inline constexpr int kStateVersion = 1;
+inline constexpr int kStateVersion = 2;   // 2: ArpSampler sequencer
+
+/** The note a sequence's transpose 0 plays from (the Key's root in this octave): C1 = 36, bass register. */
+inline constexpr int kSequenceBaseNote = 36;
 
 namespace ParamIDs
 {
@@ -36,20 +39,49 @@ namespace ParamIDs
     inline constexpr auto envMod      = "envMod";
     inline constexpr auto decay       = "decay";
     inline constexpr auto accent      = "accent";
-    inline constexpr auto gate        = "gate";
     inline constexpr auto envAttack   = "envAttack";
     inline constexpr auto accDecay    = "accDecay";
     inline constexpr auto accSweep    = "accSweep";
 
-    // Sequencer
-    inline constexpr auto seqOn       = "seqOn";
-    inline constexpr auto keyMode     = "keyMode";
-    inline constexpr auto seqRate     = "seqRate";
-    inline constexpr auto swing       = "swing";
+    // Sequencer (the ArpSampler arpeggiator + step sequencer). Glide = slideTime.
     inline constexpr auto slideTime   = "slideTime";
-    inline constexpr auto direction   = "direction";
-    inline constexpr auto transpose   = "transpose";
-    inline constexpr auto pattern     = "pattern";
+    inline constexpr auto arpOn       = "arpOn";
+    inline constexpr auto arpMode     = "arpMode";
+    inline constexpr auto arpRate     = "arpRate";
+    inline constexpr auto arpRateType = "arpRateType";
+    inline constexpr auto arpGate     = "arpGate";
+    inline constexpr auto arpSwing    = "arpSwing";
+    inline constexpr auto arpOctave   = "arpOctave";
+    inline constexpr auto velMode     = "velMode";
+    inline constexpr auto bpm         = "bpm";
+    inline constexpr auto autoPlay    = "autoPlay";
+    inline constexpr auto midiOut     = "midiOut";
+    inline constexpr auto seqLength   = "seqLength";
+    inline constexpr auto seqEnd      = "seqEnd";
+    inline constexpr auto scaleKey    = "scaleKey";
+    inline constexpr auto scale       = "scale";
+    inline constexpr auto scaleLock   = "scaleLock";
+
+    // Randomiser (saved, not automatable)
+    inline constexpr auto rndDensity     = "rndDensity";
+    inline constexpr auto rndRange       = "rndRange";
+    inline constexpr auto rndTieProb     = "rndTieProb";
+    inline constexpr auto rndVelMin      = "rndVelMin";
+    inline constexpr auto rndVelMax      = "rndVelMax";
+    inline constexpr auto rndRatchet     = "rndRatchet";
+    inline constexpr auto rndAccent      = "rndAccent";
+    inline constexpr auto rndLockPitch   = "rndLockPitch";
+    inline constexpr auto rndLockVel     = "rndLockVel";
+    inline constexpr auto rndLockRest    = "rndLockRest";
+    inline constexpr auto rndLockTie     = "rndLockTie";
+    inline constexpr auto rndLockRatchet = "rndLockRatchet";
+    inline constexpr auto rndLockAccent  = "rndLockAccent";
+    inline constexpr auto rndFileNotes   = "rndFileNotes";
+
+    // MIDI export (saved, not automatable)
+    inline constexpr auto exportBars  = "exportBars";
+    inline constexpr auto exportRoot  = "exportRoot";
+    inline constexpr auto exportChord = "exportChord";
 
     // Layers page
     inline constexpr auto oscBLevel   = "oscBLevel";
@@ -94,8 +126,6 @@ namespace ParamIDs
 //==============================================================================
 // Choice lists
 inline juce::StringArray waveNames()       { return { "Saw", "Square" }; }
-inline juce::StringArray seqRateNames()    { return { "1/8", "1/16", "1/16 T", "1/32" }; }
-inline juce::StringArray directionNames()  { return { "Forward", "Reverse", "Ping-Pong", "Random" }; }
 inline juce::StringArray lfoShapeNames()   { return { "Sine", "Triangle", "Saw Up", "Saw Down", "Square", "S&H", "Smooth Random" }; }
 inline juce::StringArray lfoShapeShort()   { return { "SINE", "TRI", "SAW UP", "SAW DN", "SQUARE", "S&H", "SMOOTH" }; }
 inline juce::StringArray lfoRetrigNames()  { return { "Free", "Note", "Bar" }; }

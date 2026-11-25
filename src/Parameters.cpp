@@ -1,5 +1,6 @@
 #include "Parameters.h"
 #include <map>
+#include "arp/ArpParameters.h"
 
 namespace acid
 {
@@ -62,15 +63,19 @@ String describeParameter (const String& id, float v)
 {
     using namespace ParamIDs;
 
-    if (id == tune || id == oscBTune || id == transpose) return signedText (v, " st");
+    if (id == tune || id == oscBTune) return signedText (v, " st");
     if (id == volume || id == bass || id == treble || id == tubeInput || id == tubeOutput) return signedText (v, " dB");
     if (id == cutoff || id == cutoffLow) return formatHz (cutoffToHz (v));
     if (id == decay || id == accDecay)   return formatMs (decayToMs (v));
     if (id == envAttack)                 return formatMs (envAttackToMs (v));
-    if (id == gate)                      return formatNumber (v) + " % of step";
-    if (id == swing)                     return formatNumber (v) + " %";
+    if (id == arpGate)                   return formatNumber (v) + " %";
+    if (id == arpSwing)                  return signedText (v, " %");
     if (id == slideTime)                 return formatNumber (v) + " ms";
-    if (id == pattern)                   return "P" + String (roundToInt (v)).paddedLeft ('0', 2);
+    if (id == bpm)                       return formatNumber (v) + " BPM";
+    if (id == arpOctave)                 return String (roundToInt (v)) + (roundToInt (v) == 1 ? " octave" : " octaves");
+    if (id == rndRange)                  { const int r = roundToInt (v); return r % 12 == 0 && r > 0 ? "+/-" + String (r / 12) + " oct" : "+/-" + String (r) + " st"; }
+    if (id == rndVelMin || id == rndVelMax) return String (roundToInt (v));
+    if (id == exportRoot)                return v < 0.0f ? String ("Auto") : as::noteName (roundToInt (v));
     if (id == oscBDetune)                return signedText (v, " ct");
     if (id == unisonVoices)              return String (roundToInt (v)) + (roundToInt (v) == 1 ? " voice" : " voices");
     if (id == ampAttack)                 return formatMs (ampAttackToMs (v));
@@ -110,18 +115,43 @@ String helpForParameter (const String& id)
         { envMod,      "How far the filter envelope opens the cutoff (up to 5 octaves)." },
         { decay,       "Filter envelope decay for normal notes." },
         { accent,      "Accent strength: louder notes and a filter kick." },
-        { gate,        "How long each sequencer step holds the gate." },
         { envAttack,   "Soft attack of the filter envelope." },
         { accDecay,    "Filter envelope decay for accented notes." },
         { accSweep,    "Accent sweep: consecutive accents build the cutoff up higher and higher." },
-        { seqOn,       "Sequencer on: the pattern plays with the host (or the Play button)." },
-        { keyMode,     "Key mode: a held MIDI key transposes the pattern (relative to C) and gates it." },
-        { seqRate,     "Step length." },
-        { swing,       "Delays every second step." },
-        { slideTime,   "Glide time of slid notes." },
-        { direction,   "Play direction of the pattern." },
-        { transpose,   "Transposes the whole pattern." },
-        { pattern,     "Pattern slot P01 - P16." },
+        { slideTime,   "Glide: how long a tied step takes to slide to its new pitch." },
+        { arpOn,       "Arpeggiator / sequencer on. Off: incoming MIDI plays the synth directly." },
+        { arpMode,     "Arp mode. Step and Chord play the step sequencer." },
+        { arpRate,     "Step length, synced to the tempo." },
+        { arpRateType, "Straight, triplet or dotted note values." },
+        { arpGate,     "Note length as 1-200 % of a step. Above 100 % notes overlap." },
+        { arpSwing,    "Moves every second step later (+) or earlier (-) by up to half a step." },
+        { arpOctave,   "Each full cycle repeats one octave higher, up to this many octaves." },
+        { velMode,     "Key, Hold, Step, Step+Key or Step+Hold velocity." },
+        { bpm,         "Internal tempo, used when the host gives none." },
+        { autoPlay,    "Auto Play: the sequencer plays whenever the host plays, from the Key's root. Keys you play take over." },
+        { midiOut,     "Send the sequencer's notes to the plugin's MIDI output." },
+        { seqLength,   "Number of steps: 16 or 32." },
+        { seqEnd,      "End: No = play every step; a step number loops back to step 1 after that step." },
+        { scaleKey,    "Key (root) of the scale." },
+        { scale,       "Scale used by Scale Lock." },
+        { scaleLock,   "Scale Lock: the Transpose numbers count notes of the scale, so everything stays in key." },
+        { rndDensity,  "Randomise: the chance a step plays." },
+        { rndRange,    "Randomise: the transpose range." },
+        { rndTieProb,  "Randomise: the chance a playing step ties (glides) into the next." },
+        { rndVelMin,   "Randomise: lowest velocity." },
+        { rndVelMax,   "Randomise: highest velocity." },
+        { rndRatchet,  "Randomise: the chance a playing step gets 2-4 ratchet hits." },
+        { rndAccent,   "Randomise: the chance a playing step is accented." },
+        { rndLockPitch, "Keep the current transposes when randomising." },
+        { rndLockVel,  "Keep the current velocities when randomising." },
+        { rndLockRest, "Keep the Volume lane (and so the rests) when randomising." },
+        { rndLockTie,  "Keep the current ties when randomising." },
+        { rndLockRatchet, "Keep the current ratchets when randomising." },
+        { rndLockAccent, "Keep the current accents when randomising." },
+        { rndFileNotes, "File Notes: Randomise picks pitches only from the last imported file's notes." },
+        { exportBars,  "Length of the exported MIDI clip." },
+        { exportRoot,  "Export root note (Auto = the key you last played)." },
+        { exportChord, "Chord used for export in note modes when no keys have been played." },
         { oscBLevel,   "Level of the second oscillator layer." },
         { oscBTune,    "Second oscillator tuning in semitones." },
         { oscBDetune,  "Second oscillator fine detune in cents." },
@@ -224,20 +254,62 @@ AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     knob (envMod,    "Env Mod",    55.0f);
     knob (decay,     "Decay",      45.0f);
     knob (accent,    "Accent",     60.0f);
-    number (gate,    "Gate", 5.0f, 100.0f, 50.0f);
     knob (envAttack, "Env Attack", 50.0f);    // 3 ms
     knob (accDecay,  "Acc Decay",  35.0f);
     knob (accSweep,  "Acc Sweep",  40.0f);
 
-    // Sequencer
-    toggle (seqOn,   "Seq On", true);
-    toggle (keyMode, "Key Mode", false);
-    choice (seqRate, "Seq Rate", seqRateNames(), 1);
-    number (swing,     "Swing", 0.0f, 75.0f, 0.0f);
-    number (slideTime, "Slide Time", 10.0f, 500.0f, 60.0f);
-    choice (direction, "Direction", directionNames(), 0);
-    number (transpose, "Transpose", -24.0f, 24.0f, 0.0f);
-    number (pattern,   "Pattern", 1.0f, 16.0f, 1.0f);
+    // Sequencer: the ArpSampler arpeggiator + step sequencer (Glide = slideTime)
+    number (slideTime, "Glide", 10.0f, 500.0f, 60.0f);
+    toggle (arpOn, "Arp On", true);
+    choice (arpMode, "Arp Mode", as::getArpModeNames(), (int) as::ArpMode::Step);
+    choice (arpRate, "Arp Rate", as::getRateNames(), 3);
+    choice (arpRateType, "Arp Rate Type", as::getRateTypeNames(), 0);
+    number (arpGate, "Arp Gate", 1.0f, 200.0f, 50.0f);
+    number (arpSwing, "Arp Swing", -100.0f, 100.0f, 0.0f);
+    number (arpOctave, "Arp Octave", 1.0f, 4.0f, 1.0f);
+    choice (velMode, "Velocity Mode", as::getVelModeNames(), 0);
+    number (bpm, "Internal BPM", 20.0f, 300.0f, as::kDefaultBpm);
+    toggle (autoPlay, "Auto Play", true);
+    toggle (midiOut, "MIDI Out", false);
+    choice (seqLength, "Seq Length", as::getSeqLengthNames(), 0);
+    choice (seqEnd, "Seq End", as::getSeqEndNames(), 0);
+    choice (scaleKey, "Scale Key", as::getKeyNames(), 0);
+    choice (scale, "Scale", as::getScaleNames(), 0);
+    toggle (scaleLock, "Scale Lock", false);
+
+    // Randomiser and export settings: saved with the project, not automatable
+    auto setting = [&layout] (const String& id, const String& name, float lo, float hi, float def)
+    {
+        auto attributes = AudioParameterFloatAttributes()
+            .withStringFromValueFunction ([id] (float v, int) { return describeParameter (id, v); })
+            .withAutomatable (false);
+        layout.add (std::make_unique<AudioParameterFloat> (ParameterID { id, 1 }, name, NormalisableRange<float> (lo, hi, 1.0f), def, attributes));
+    };
+    auto settingToggle = [&layout] (const String& id, const String& name, bool def)
+    {
+        layout.add (std::make_unique<AudioParameterBool> (ParameterID { id, 1 }, name, def, AudioParameterBoolAttributes().withAutomatable (false)));
+    };
+    auto settingChoice = [&layout] (const String& id, const String& name, const StringArray& items, int def)
+    {
+        layout.add (std::make_unique<AudioParameterChoice> (ParameterID { id, 1 }, name, items, def, AudioParameterChoiceAttributes().withAutomatable (false)));
+    };
+    setting (rndDensity, "Rnd Density", 0.0f, 100.0f, 75.0f);
+    setting (rndRange, "Rnd Pitch Range", 0.0f, 24.0f, 12.0f);
+    setting (rndTieProb, "Rnd Tie Prob", 0.0f, 100.0f, 15.0f);
+    setting (rndVelMin, "Rnd Vel Min", 1.0f, 127.0f, 60.0f);
+    setting (rndVelMax, "Rnd Vel Max", 1.0f, 127.0f, 127.0f);
+    setting (rndRatchet, "Rnd Ratchet Prob", 0.0f, 100.0f, 10.0f);
+    setting (rndAccent, "Rnd Accent Prob", 0.0f, 100.0f, 25.0f);
+    settingToggle (rndLockPitch, "Rnd Lock Pitch", false);
+    settingToggle (rndLockVel, "Rnd Lock Velocity", false);
+    settingToggle (rndLockRest, "Rnd Lock Rests", false);
+    settingToggle (rndLockTie, "Rnd Lock Ties", false);
+    settingToggle (rndLockRatchet, "Rnd Lock Ratchets", false);
+    settingToggle (rndLockAccent, "Rnd Lock Accents", false);
+    settingToggle (rndFileNotes, "Rnd File Notes", false);
+    settingChoice (exportBars, "Export Length", as::getExportBarNames(), 1);
+    setting (exportRoot, "Export Root", -1.0f, 127.0f, -1.0f);
+    settingChoice (exportChord, "Export Chord", as::getExportChordNames(), 0);
 
     // Layers
     knob (oscBLevel, "Osc B Level", 0.0f);

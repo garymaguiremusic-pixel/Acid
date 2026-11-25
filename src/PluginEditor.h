@@ -6,17 +6,18 @@
 #include "ui/Knob.h"
 #include "ui/Widgets.h"
 #include "ui/pages/SynthPage.h"
+#include "ui/pages/SequencerPage.h"
 #include "ui/pages/LayersPage.h"
 #include "ui/pages/TubePage.h"
 
 //==============================================================================
-/** The whole interface at its base size (1000 x 720). The editor below scales it
+/** The whole interface at its base size (1000 x 900). The editor below scales it
     to the window size. */
 class AcidPanel : public juce::Component,
                   private juce::Timer
 {
 public:
-    static constexpr int kBaseWidth = 1000, kBaseHeight = 720;
+    static constexpr int kBaseWidth = 1000, kBaseHeight = 900;
 
     explicit AcidPanel (AcidAudioProcessor&);
     ~AcidPanel() override;
@@ -52,7 +53,7 @@ private:
 
     // pages
     std::array<juce::TextButton, 3> tabs;
-    SynthPage synthPage;
+    SynthPage synthPage;          // synth + sequencer
     LayersPage layersPage;
     TubePage tubePage;
     int currentPage = 0;

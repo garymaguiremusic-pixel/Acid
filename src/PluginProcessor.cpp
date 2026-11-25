@@ -1,8 +1,17 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include "arp/Scales.h"
+#include "presets/FactoryPresets.h"
+#include <limits>
 
 using namespace juce;
 using namespace acid;
+
+namespace
+{
+    const Identifier sequencePathID { "sequencePath" };
+    const Identifier seedID         { "randomSeed" };
+}
 
 //==============================================================================
 AcidAudioProcessor::AcidAudioProcessor()
@@ -23,11 +32,14 @@ AcidAudioProcessor::AcidAudioProcessor()
     P.cutoffLow = get (cutoffLow);   P.cutoff = get (cutoff);        P.resonance = get (resonance);
     P.transistor = get (transistor); P.bass = get (bass);            P.treble = get (treble);
     P.drive = get (drive);           P.envMod = get (envMod);        P.decay = get (decay);
-    P.accent = get (accent);         P.gate = get (gate);            P.envAttack = get (envAttack);
-    P.accDecay = get (accDecay);     P.accSweep = get (accSweep);
-    P.seqOn = get (seqOn);           P.keyMode = get (keyMode);      P.seqRate = get (seqRate);
-    P.swing = get (swing);           P.slideTime = get (slideTime);  P.direction = get (direction);
-    P.transpose = get (transpose);   P.pattern = get (pattern);
+    P.accent = get (accent);         P.envAttack = get (envAttack);
+    P.accDecay = get (accDecay);     P.accSweep = get (accSweep);    P.slideTime = get (slideTime);
+    P.arpOn = get (arpOn);           P.arpMode = get (arpMode);      P.arpRate = get (arpRate);
+    P.arpRateType = get (arpRateType); P.arpGate = get (arpGate);    P.arpSwing = get (arpSwing);
+    P.arpOctave = get (arpOctave);   P.velMode = get (velMode);      P.bpm = get (ParamIDs::bpm);
+    P.autoPlay = get (autoPlay);     P.midiOut = get (midiOut);      P.seqLength = get (seqLength);
+    P.seqEnd = get (seqEnd);         P.scaleKey = get (scaleKey);    P.scale = get (ParamIDs::scale);
+    P.scaleLock = get (scaleLock);
     P.oscBLevel = get (oscBLevel);   P.oscBTune = get (oscBTune);    P.oscBDetune = get (oscBDetune);
     P.unisonVoices = get (unisonVoices); P.unisonSpread = get (unisonSpread); P.unisonFree = get (unisonFree);
     P.ampAttack = get (ampAttack);   P.ampDecay = get (ampDecay);    P.ampRelease = get (ampRelease);
@@ -52,26 +64,25 @@ AcidAudioProcessor::AcidAudioProcessor()
         P.lfoRetrig[i] = get (lfo (i, "Retrig")); P.lfoDest[i]   = get (lfo (i, "Dest"));
     }
 
-    for (auto& pat : bank)
-        pat = makeDefaultPattern();
     presets.loadFactory (0);    // a playable sound and pattern from the start
+    patternModel.clearHistory();
 
-    apvts.addParameterListener (ParamIDs::pattern, this);
+    apvts.addParameterListener (ParamIDs::scaleKey, this);
+    apvts.addParameterListener (ParamIDs::scale, this);
+    apvts.addParameterListener (ParamIDs::scaleLock, this);
 }
 
 AcidAudioProcessor::~AcidAudioProcessor()
 {
-    apvts.removeParameterListener (ParamIDs::pattern, this);
+    cancelPendingUpdate();
+    apvts.removeParameterListener (ParamIDs::scaleLock, this);
+    apvts.removeParameterListener (ParamIDs::scale, this);
+    apvts.removeParameterListener (ParamIDs::scaleKey, this);
 }
 
 bool AcidAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
 {
     return layouts.getMainOutputChannelSet() == AudioChannelSet::stereo();
-}
-
-void AcidAudioProcessor::parameterChanged (const String&, float)
-{
-    patternVersion.fetch_add (1);   // the shown pattern slot changed
 }
 
 //==============================================================================
@@ -83,12 +94,11 @@ void AcidAudioProcessor::prepareToPlay (double sr, int)
     tone.prepare (sr);
     tube.prepare (sr);
     echo.prepare (sr);
-    sequencer.reset();
+    arp.prepare (sr);
     masterGain.reset (sr, 0.03);
     masterGain.setCurrentAndTargetValue (Decibels::decibelsToGain (P.volume->load()));
     updateSettings();
     setLatencySamples (voice.getLatencySamples() + MultibandTube::getLatencySamples());
-    exchange.publish (bank);
     reset();
 }
 
@@ -98,13 +108,319 @@ void AcidAudioProcessor::reset()
     tone.reset();
     tube.reset();
     echo.reset();
-    sequencer.reset();
-    numHeldNotes = numHeldKeys = 0;
-    midiOutNote = -1;
-    directVoiceActive = false;
+    arp.reset();
+    midiWriter.reset();
+    numHeldNotes = 0;
+    voiceArpId = 0;
 }
 
 //==============================================================================
+// Sequencer helpers (message thread)
+//==============================================================================
+void AcidAudioProcessor::parameterChanged (const String&, float)
+{
+    // Key / Scale / Scale Lock changed: convert the step numbers (see syncPatternUnits)
+    if (! restoringState.load())
+        triggerAsyncUpdate();
+}
+
+void AcidAudioProcessor::handleAsyncUpdate()
+{
+    syncPatternUnits();
+}
+
+void AcidAudioProcessor::syncPatternUnits()
+{
+    // With Scale Lock on, the step numbers count notes of the scale; off, they are semitones.
+    // When Scale Lock is switched (or an old pattern comes back), convert the numbers so the
+    // pattern keeps its notes.
+    const bool wantSteps = P.scaleLock->load() > 0.5f;
+    auto p = patternModel.get();
+    if (p.scaleSteps == wantSteps)
+        return;
+
+    const int scaleIndex = roundToInt (P.scale->load());
+    auto convert = [&] (int t)
+    {
+        return jlimit (-24, 24, wantSteps ? as::arp::semitonesToScaleSteps (t, scaleIndex) : as::arp::scaleStepsToSemitones (t, scaleIndex));
+    };
+    for (auto& step : p.steps)
+        step.transpose = convert (step.transpose);
+
+    decltype (p.notePool) pool {};
+    for (int t = -24; t <= 24; ++t)
+        if (const int c = p.poolCount (t); c > 0)
+        {
+            auto& slot = pool[(size_t) (convert (t) + 24)];
+            slot = (std::uint8_t) jmin (255, slot + c);
+        }
+    p.notePool = pool;
+    p.scaleSteps = wantSteps;
+    p.key = roundToInt (P.scaleKey->load());
+    p.scale = scaleIndex;
+    patternModel.set (p, false);
+}
+
+void AcidAudioProcessor::setPattern (const as::arp::Pattern& pattern, int length)
+{
+    // preset patterns are written in semitones: convert to scale steps if Scale Lock is on
+    auto p = pattern;
+    p.scaleSteps = false;
+    p.key = roundToInt (P.scaleKey->load());
+    p.scale = roundToInt (P.scale->load());
+    patternModel.set (p, true);
+    syncPatternUnits();
+
+    length = jlimit (1, as::kMaxSteps, length);
+    setParameterValue (ParamIDs::seqLength, length > 16 ? 1.0f : 0.0f);
+    setParameterValue (ParamIDs::seqEnd, (length == 16 || length == 32) ? 0.0f : (float) length);
+}
+
+void AcidAudioProcessor::restorePattern (const ValueTree& tree)
+{
+    auto copy = patternModel.get();
+    as::arp::PatternExchange scratchExchange;
+    as::arp::PatternModel scratch (scratchExchange);
+    scratch.fromValueTree (tree);
+    copy = scratch.get();
+    patternModel.set (copy, true);
+    syncPatternUnits();
+}
+
+as::arp::RandomiseSettings AcidAudioProcessor::readRandomiseSettings() const
+{
+    auto value = [this] (const char* id) { return apvts.getRawParameterValue (id)->load(); };
+    using namespace ParamIDs;
+
+    as::arp::RandomiseSettings r;
+    r.density            = value (rndDensity) * 0.01f;
+    r.range              = roundToInt (value (rndRange));
+    r.tieProbability     = value (rndTieProb) * 0.01f;
+    r.velocityMin        = roundToInt (value (rndVelMin));
+    r.velocityMax        = roundToInt (value (rndVelMax));
+    r.lockPitch          = value (rndLockPitch) > 0.5f;
+    r.lockVelocity       = value (rndLockVel) > 0.5f;
+    r.lockRests          = value (rndLockRest) > 0.5f;
+    r.lockTies           = value (rndLockTie) > 0.5f;
+    r.ratchetProbability = value (rndRatchet) * 0.01f;
+    r.lockRatchets       = value (rndLockRatchet) > 0.5f;
+    r.reverseProbability = 0.0f;            // a synth has no sample to play backwards
+    r.lockReverse        = true;
+    r.accentProbability  = value (rndAccent) * 0.01f;
+    r.lockAccents        = value (rndLockAccent) > 0.5f;
+    r.fileNotes          = value (rndFileNotes) > 0.5f;
+    r.scaleLock          = value (ParamIDs::scaleLock) > 0.5f;
+    r.scaleKey           = roundToInt (value (ParamIDs::scaleKey));
+    r.scaleIndex         = roundToInt (value (ParamIDs::scale));
+    return r;
+}
+
+void AcidAudioProcessor::randomisePattern (std::optional<uint32> seed)
+{
+    randomSeed = seed.has_value() ? *seed : (uint32) Random::getSystemRandom().nextInt (999999999) + 1u;
+    syncPatternUnits();
+    patternModel.set (as::arp::randomisePattern (patternModel.get(), readRandomiseSettings(), randomSeed), true);
+}
+
+as::arp::Pattern AcidAudioProcessor::makeEmptyPattern() const
+{
+    as::arp::Pattern p;
+    p.notePool = patternModel.get().notePool;      // Clear keeps the imported file's notes for File Notes
+    p.scaleSteps = P.scaleLock->load() > 0.5f;
+    p.key = roundToInt (P.scaleKey->load());
+    p.scale = roundToInt (P.scale->load());
+    return p;
+}
+
+as::import::ImportOptions AcidAudioProcessor::makeImportOptions() const
+{
+    as::import::ImportOptions o;
+    o.stepLength = as::arp::stepLengthInQuarters (roundToInt (P.arpRate->load()), (as::RateType) roundToInt (P.arpRateType->load()));
+    o.startBar = importChoices.startBar;
+    o.topNote = importChoices.topNote;
+    o.scaleSteps = P.scaleLock->load() > 0.5f;
+    o.key = roundToInt (P.scaleKey->load());
+    o.scale = roundToInt (P.scale->load());
+    o.baseNote = kSequenceBaseNote;
+    return o;
+}
+
+int AcidAudioProcessor::applyImport (const std::vector<as::import::ImportedNote>& notes, bool lockToScale)
+{
+    auto options = makeImportOptions();
+    options.snapToScale = lockToScale;
+    const auto result = as::import::notesToPattern (notes, options);
+    if (result.notesUsed == 0)
+        return 0;
+
+    patternModel.set (result.pattern, true);
+    setParameterValue (ParamIDs::seqLength, result.length > 16 ? 1.0f : 0.0f);
+    setParameterValue (ParamIDs::seqEnd, (float) result.end);
+    setParameterValue (ParamIDs::arpMode, (float) as::ArpMode::Step);     // the steps play the imported line
+    setParameterValue (ParamIDs::arpOn, 1.0f);
+    return result.notesUsed;
+}
+
+as::exporter::ExportRequest AcidAudioProcessor::buildExportRequest() const
+{
+    auto value = [this] (const char* id) { return apvts.getRawParameterValue (id)->load(); };
+
+    as::exporter::ExportRequest r;
+    r.settings = readArpSettings();
+    r.settings.enabled = true;
+    r.pattern = patternModel.get();
+    r.bpm = getTempo();
+
+    static constexpr int barChoices[] = { 1, 2, 4, 8 };
+    r.bars = barChoices[jlimit (0, 3, roundToInt (value (ParamIDs::exportBars)))];
+
+    // Auto: the keys you last played; with none yet, the Key's root in the bass octave
+    const int chosenRoot = roundToInt (value (ParamIDs::exportRoot));
+    const auto held = getLastHeldNotes();
+    const bool autoRoot = chosenRoot < 0;
+    const int root = autoRoot ? kSequenceBaseNote + r.settings.scaleKey : chosenRoot;
+
+    if (r.settings.mode == as::ArpMode::Step)
+    {
+        r.input = { { autoRoot && ! held.empty() ? held.back().note : root, 100 } };
+    }
+    else
+    {
+        r.input = held;
+        if (r.input.empty())
+            for (auto interval : as::exporter::chordIntervals (roundToInt (value (ParamIDs::exportChord))))
+                if (root + interval <= 127)
+                    r.input.push_back ({ root + interval, 100 });
+    }
+    return r;
+}
+
+File AcidAudioProcessor::exportMidiToTempFile() const
+{
+    const auto request = buildExportRequest();
+    return as::exporter::writeToTempFile (as::exporter::renderPattern (request), as::exporter::suggestedName (request));
+}
+
+void AcidAudioProcessor::publishHeldNotes() noexcept
+{
+    const int count = arp.getNumHeld();
+    if (count == 0)
+        return;     // keep the last keys that were played
+
+    const auto* held = arp.getHeldNotes();
+    bool same = count == lastPublishedCount;
+    for (int i = 0; same && i < count; ++i)
+        same = held[i].note == lastPublishedHeld[(size_t) i].note && held[i].velocity == lastPublishedHeld[(size_t) i].velocity;
+    if (same)
+        return;
+
+    const auto v = heldVersion.load (std::memory_order_relaxed);
+    heldVersion.store (v + 1, std::memory_order_release);        // odd: writing
+    std::atomic_thread_fence (std::memory_order_release);
+    for (int i = 0; i < count; ++i)
+    {
+        heldNotesPublished[(size_t) i].store (held[i].note, std::memory_order_relaxed);
+        heldVelocities[(size_t) i].store (held[i].velocity, std::memory_order_relaxed);
+        lastPublishedHeld[(size_t) i] = held[i];
+    }
+    heldCount.store (count, std::memory_order_relaxed);
+    lastPublishedCount = count;
+    heldVersion.store (v + 2, std::memory_order_release);        // even: done
+}
+
+std::vector<as::arp::HeldNote> AcidAudioProcessor::getLastHeldNotes() const
+{
+    std::vector<as::arp::HeldNote> result;
+    for (int attempt = 0; attempt < 100; ++attempt)
+    {
+        const auto v1 = heldVersion.load (std::memory_order_acquire);
+        if ((v1 & 1u) != 0)
+            continue;
+
+        result.clear();
+        const int count = jlimit (0, as::arp::kMaxHeld, heldCount.load (std::memory_order_relaxed));
+        for (int i = 0; i < count; ++i)
+            result.push_back ({ heldNotesPublished[(size_t) i].load (std::memory_order_relaxed),
+                                heldVelocities[(size_t) i].load (std::memory_order_relaxed) });
+
+        std::atomic_thread_fence (std::memory_order_acquire);
+        if (heldVersion.load (std::memory_order_relaxed) == v1)
+            return result;
+    }
+    return result;
+}
+
+//==============================================================================
+// Audio
+//==============================================================================
+as::arp::ArpSettings AcidAudioProcessor::readArpSettings() const noexcept
+{
+    as::arp::ArpSettings s;
+    s.enabled      = P.arpOn->load() > 0.5f;
+    s.mode         = (as::ArpMode) roundToInt (P.arpMode->load());
+    s.rateIndex    = roundToInt (P.arpRate->load());
+    s.rateType     = (as::RateType) roundToInt (P.arpRateType->load());
+    s.gate         = P.arpGate->load() * 0.01f;
+    s.swing        = P.arpSwing->load() * 0.01f;
+    s.octaves      = roundToInt (P.arpOctave->load());
+    s.velocityMode = (as::VelocityMode) roundToInt (P.velMode->load());
+    s.retrigger    = true;          // mono synth: a new step retriggers, a Tie glides
+
+    const int length = roundToInt (P.seqLength->load()) == 0 ? 16 : 32;
+    s.sequenceLength = as::arp::effectiveLength (length, roundToInt (P.seqEnd->load()));
+
+    s.scaleKey   = roundToInt (P.scaleKey->load());
+    s.scaleIndex = roundToInt (P.scale->load());
+    s.followKey  = P.scaleLock->load() > 0.5f;
+    s.autoPlay   = P.autoPlay->load() > 0.5f;
+    s.autoNote   = kSequenceBaseNote + s.scaleKey;     // the Key's root in the bass octave
+    return s;
+}
+
+as::arp::TransportInfo AcidAudioProcessor::readTransport() noexcept
+{
+    as::arp::TransportInfo t;
+    t.bpm = P.bpm->load();
+    bool hostTempo = false;
+    hostPlaying = false;
+
+    if (auto* ph = getPlayHead())
+    {
+        if (const auto position = ph->getPosition())
+        {
+            if (const auto hostBpm = position->getBpm(); hostBpm.hasValue() && *hostBpm > 0.0)
+            {
+                t.bpm = *hostBpm;
+                hostTempo = true;
+            }
+
+            if (position->getIsPlaying())
+            {
+                if (const auto ppq = position->getPpqPosition())
+                {
+                    t.hostPlaying = true;
+                    t.ppqAtBlockStart = *ppq;
+
+                    if (const auto loop = position->getLoopPoints(); loop.hasValue() && position->getIsLooping())
+                    {
+                        t.looping = true;
+                        t.loopStart = loop->ppqStart;
+                        t.loopEnd = loop->ppqEnd;
+                    }
+                }
+            }
+        }
+    }
+
+    bpm = jlimit (20.0, 400.0, t.bpm);
+    hostPlaying = t.hostPlaying;
+    blockPpq = t.ppqAtBlockStart;
+    ppqPerSample = bpm / 60.0 / sampleRate;
+    gui.bpm.store ((float) bpm);
+    gui.hostTempo.store (hostTempo);
+    return t;
+}
+
 void AcidAudioProcessor::updateSettings() noexcept
 {
     VoiceSettings v;
@@ -134,14 +450,6 @@ void AcidAudioProcessor::updateSettings() noexcept
     v.ampReleaseMs    = ampReleaseToMs (P.ampRelease->load());
     v.slideMs         = P.slideTime->load();
     voice.setSettings (v);
-
-    SeqSettings s;
-    s.rate      = roundToInt (P.seqRate->load());
-    s.swing     = P.swing->load() / 100.0f;
-    s.direction = roundToInt (P.direction->load());
-    s.transpose = roundToInt (P.transpose->load());
-    s.gate      = P.gate->load() / 100.0f;
-    sequencer.setSettings (s);
 
     tone.setGains (P.bass->load(), P.treble->load());
 
@@ -193,68 +501,267 @@ void AcidAudioProcessor::updateSettings() noexcept
     masterGain.setTargetValue (Decibels::decibelsToGain (P.volume->load(), -100.0f));
 }
 
-double AcidAudioProcessor::ppqAt (int sampleInBlock) const noexcept
-{
-    return (hostPlaying ? blockPpq : internalBlockStart) + ppqPerSample * sampleInBlock;
-}
 
 //==============================================================================
+void AcidAudioProcessor::computeModulation (int sampleInBlock, int n) noexcept
+{
+    voiceMod = {};
+    bool used[NumLfoDests] {};
+    for (int i = 0; i < 2; ++i)
+        if (std::abs (lfoDepthNow[i]) > 0.0f)
+            used[jlimit (0, NumLfoDests - 1, lfoDestNow[i])] = true;
+
+    if (used[DestCutoff]) { std::fill (modCutoff, modCutoff + n, 0.0f); voiceMod.cutoffOct  = modCutoff; }
+    if (used[DestPitch])  { std::fill (modPitch, modPitch + n, 0.0f);   voiceMod.pitchSemis = modPitch; }
+    if (used[DestWave])   { std::fill (modWave, modWave + n, 0.0f);     voiceMod.wave       = modWave; }
+    if (used[DestReso])   { std::fill (modReso, modReso + n, 0.0f);     voiceMod.resonance  = modReso; }
+    if (used[DestVolume]) { std::fill (modVolume, modVolume + n, 1.0f); voiceMod.volume     = modVolume; }
+
+    for (int i = 0; i < 2; ++i)
+    {
+        double cyclesPerSecond, cyclesPerBeat;
+        if (P.lfoSync[i]->load() > 0.5f)
+        {
+            const auto& divs = lfoDivisions();
+            const double beats = divs[(size_t) divisionIndex (P.lfoRate[i]->load(), (int) divs.size())].beats;
+            cyclesPerBeat = 1.0 / beats;
+            cyclesPerSecond = cyclesPerBeat * bpm / 60.0;
+        }
+        else
+        {
+            cyclesPerSecond = lfoFreeHz (P.lfoRate[i]->load());
+            cyclesPerBeat = cyclesPerSecond * 60.0 / bpm;
+        }
+
+        float* buf = lfoBuf[i];
+        lfos[i].process (buf, n, cyclesPerSecond, cyclesPerBeat, hostPlaying, blockPpq + ppqPerSample * sampleInBlock, ppqPerSample);
+
+        const float d = lfoDepthNow[i];
+        if (d == 0.0f)
+            continue;
+
+        switch (lfoDestNow[i])
+        {
+            case DestCutoff: for (int k = 0; k < n; ++k) modCutoff[k] += buf[k] * d * 4.0f;  break;   // +-4 octaves
+            case DestPitch:  for (int k = 0; k < n; ++k) modPitch[k]  += buf[k] * d * 12.0f; break;   // +-12 st
+            case DestWave:   for (int k = 0; k < n; ++k) modWave[k]   += buf[k] * d;         break;
+            case DestReso:   for (int k = 0; k < n; ++k) modReso[k]   += buf[k] * d;         break;
+            case DestVolume:
+            {
+                const float s = d > 0.0f ? 1.0f : -1.0f, a = std::abs (d);
+                for (int k = 0; k < n; ++k)
+                    modVolume[k] *= jmax (0.0f, 1.0f + 0.5f * a * (s * buf[k] - 1.0f));
+                break;
+            }
+            default: break;
+        }
+    }
+}
+
+void AcidAudioProcessor::renderVoice (float* left, float* right, int from, int to) noexcept
+{
+    for (int pos = from; pos < to; pos += kChunk)
+    {
+        const int n = jmin (kChunk, to - pos);
+        computeModulation (pos, n);
+        voice.render (left + pos, right + pos, n, voiceMod, 0);
+    }
+}
+
+void AcidAudioProcessor::applyArpEvent (const as::arp::NoteEvent& e) noexcept
+{
+    using Type = as::arp::NoteEvent::Type;
+    // loudness: the note's velocity scaled by the step's Volume (as in ArpSampler)
+    const float level = (float) jlimit (0, 127, e.velocity) / 127.0f * (float) jlimit (0, 127, e.volume) / 127.0f;
+
+    switch (e.type)
+    {
+        case Type::Start:
+            // mono: the newest note takes the voice (in Chord mode, the top note)
+            voice.noteOn (e.note, e.accent, false, level);
+            voiceArpId = e.id;
+            for (auto& l : lfos) l.noteTriggered();
+            break;
+
+        case Type::Change:
+            // a tie: glide to the new pitch over the Glide time, without retriggering
+            if (e.id == voiceArpId)
+                voice.noteOn (e.note, e.accent, true, level);
+            break;
+
+        case Type::Stop:
+            if (e.id == voiceArpId)
+            {
+                voice.noteOff();
+                voiceArpId = 0;
+            }
+            break;
+
+        case Type::LegatoReset:
+            break;
+    }
+}
+
+void AcidAudioProcessor::handleDirectMidi (const MidiMessage& msg) noexcept
+{
+    // Arp off: the keys play the mono voice. Last-note priority; an overlapping note slides.
+    auto remove = [this] (int note)
+    {
+        for (int i = 0; i < numHeldNotes; ++i)
+            if (heldNotes[(size_t) i] == note)
+            {
+                for (int j = i; j < numHeldNotes - 1; ++j) heldNotes[(size_t) j] = heldNotes[(size_t) j + 1];
+                --numHeldNotes;
+                return true;
+            }
+        return false;
+    };
+
+    if (msg.isNoteOn())
+    {
+        const int note = msg.getNoteNumber();
+        const bool legato = numHeldNotes > 0;
+        remove (note);
+        if (numHeldNotes < (int) heldNotes.size()) heldNotes[(size_t) numHeldNotes++] = note;
+        voice.noteOn (note, msg.getVelocity() >= 100, legato, (float) msg.getVelocity() / 127.0f);
+        if (! legato)
+            for (auto& l : lfos) l.noteTriggered();
+    }
+    else if (msg.isNoteOff())
+    {
+        const int note = msg.getNoteNumber();
+        const bool wasTop = numHeldNotes > 0 && heldNotes[(size_t) numHeldNotes - 1] == note;
+        if (remove (note) && wasTop)
+        {
+            if (numHeldNotes > 0)
+                voice.noteOn (heldNotes[(size_t) numHeldNotes - 1], false, true);
+            else
+                voice.noteOff();
+        }
+    }
+    else if (msg.isAllNotesOff() || msg.isAllSoundOff())
+    {
+        numHeldNotes = 0;
+        voice.noteOff();
+    }
+}
+
+void AcidAudioProcessor::passThrough (const MidiMessage& m, int time) noexcept
+{
+    // Arp off with MIDI Out on: the keys go straight out
+    if (m.isNoteOn())
+    {
+        thruNotes.set ((size_t) m.getNoteNumber());
+        thruChannels[(size_t) m.getNoteNumber()] = (uint8) m.getChannel();
+    }
+    else if (m.isNoteOff())
+    {
+        thruNotes.reset ((size_t) m.getNoteNumber());
+    }
+    midiOutBuffer.addEvent (m, time);
+}
+
 void AcidAudioProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffer& midi)
 {
     ScopedNoDenormals noDenormals;
     const int total = buffer.getNumSamples();
     buffer.clear();
-    if (total <= 0)
+    if (total <= 0 || buffer.getNumChannels() < 2)
         return;
 
-    // --- transport ------------------------------------------------------------------
-    hostPlaying = false;
-    bool ppqValid = false;
-    if (auto* ph = getPlayHead())
-    {
-        if (auto pos = ph->getPosition())
-        {
-            if (auto b = pos->getBpm()) bpm = jlimit (20.0, 400.0, *b);
-            hostPlaying = pos->getIsPlaying();
-            if (auto q = pos->getPpqPosition()) { blockPpq = *q; ppqValid = true; }
-        }
-    }
-    if (hostPlaying && ! ppqValid)
-        hostPlaying = false;     // can't sync without a position: use the internal clock
-    ppqPerSample = bpm / 60.0 / sampleRate;
-
-    const bool playRequest = internalPlayRequest.load();
-    if (playRequest && ! internalPlayState)
-        internalPpq = 0.0;       // the Play button starts the pattern from step 1
-    internalPlayState = playRequest;
-    internalBlockStart = internalPpq;
-
+    const auto transport = readTransport();
     updateSettings();
 
-    const auto& patterns = exchange.read();
-    const int slot = jlimit (0, kNumPatterns - 1, roundToInt (P.pattern->load()) - 1);
-    const Pattern& pattern = patterns[(size_t) slot];
-
-    MidiBuffer midiOut;
     float* left = buffer.getWritePointer (0);
-    if (buffer.getNumChannels() < 2)
-        return;
     float* right = buffer.getWritePointer (1);
 
-    for (int start = 0; start < total; start += kChunk)
+    // MIDI Out
+    const bool midiOutOn = P.midiOut->load() > 0.5f;
+    midiOutBuffer.clear();
+    auto send = [this] (const MidiMessage& m, int time) { midiOutBuffer.addEvent (m, time); };
+    auto emit = [&] (const MidiMessage& m, int time) { if (midiOutOn) send (m, time); };
+    if (midiOutOn && ! midiOutWasOn)
+        midiWriter.forgetExpression();
+    if (midiOutWasOn && ! midiOutOn)
     {
-        const int n = jmin (kChunk, total - start);
-        processChunk (left + start, right + start, n, start, midi, midiOut, pattern);
+        midiWriter.allNotesOff (0, send);
+        releaseThruNotes (0, send);
     }
+    midiOutWasOn = midiOutOn;
 
-    // internal clock moves on while it is in use
-    if (! hostPlaying && (internalPlayState || keyClockRunning))
-        internalPpq = internalBlockStart + ppqPerSample * total;
+    // Sequencer
+    const auto settings = readArpSettings();
+    if (settings.enabled != arpWasEnabled)
+    {
+        // hand the voice over between the keys and the sequencer
+        voice.noteOff();
+        numHeldNotes = 0;
+        voiceArpId = 0;
+        releaseThruNotes (0, send);
+    }
+    arpWasEnabled = settings.enabled;
+
+    arp.setSettings (settings);
+    arp.setPattern (patternExchange.read());
+    arpEvents.clear();
+    arp.process (midi, total, transport, arpEvents);
+
+    // Render in time order, splitting the block at every sequencer event and MIDI message.
+    int rendered = 0, eventIndex = 0;
+    auto midiIt = midi.cbegin();
+    constexpr int none = std::numeric_limits<int>::max();
+
+    for (;;)
+    {
+        const int nextEvent = eventIndex < arpEvents.size() ? arpEvents[eventIndex].offset : none;
+        const int nextMidi = midiIt != midi.cend() ? (*midiIt).samplePosition : none;
+        if (nextEvent == none && nextMidi == none)
+            break;
+
+        const int pos = jlimit (rendered, total, jmin (nextEvent, nextMidi));
+        renderVoice (left, right, rendered, pos);
+        rendered = pos;
+
+        if (nextEvent <= nextMidi)
+        {
+            const auto& e = arpEvents[eventIndex++];
+            applyArpEvent (e);
+            midiWriter.apply (e, pos, emit);
+        }
+        else
+        {
+            const auto message = (*midiIt).getMessage();
+            ++midiIt;
+
+            if (! settings.enabled)
+            {
+                handleDirectMidi (message);
+                if (midiOutOn)
+                    passThrough (message, pos);
+            }
+            else
+            {
+                if (message.isAllSoundOff() || message.isResetAllControllers())
+                {
+                    voice.noteOff();
+                    voiceArpId = 0;
+                    midiWriter.allNotesOff (pos, emit);
+                }
+
+                // the sequencer owns the notes; controllers, pitch bend and pressure go straight out
+                if (midiOutOn && ! message.isNoteOnOrOff() && ! message.isSustainPedalOn() && ! message.isSustainPedalOff()
+                    && ! message.isAllNotesOff() && ! message.isAllSoundOff())
+                    send (message, pos);
+            }
+        }
+    }
+    renderVoice (left, right, rendered, total);
 
     // --- effects -------------------------------------------------------------------
     tone.process (left, right, total);
     tube.process (left, right, total);
     echo.process (left, right, total);
+
     // master volume, then a gentle safety soft-clip above about -2 dBFS
     auto safety = [] (float x)
     {
@@ -271,331 +778,21 @@ void AcidAudioProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffer& m
         right[i] = safety (right[i] * g);
     }
 
-    midi.swapWith (midiOut);
+    midi.clear();
+    if (! midiOutBuffer.isEmpty())
+        midi.addEvents (midiOutBuffer, 0, total, 0);
 
     // --- GUI state ----------------------------------------------------------------
-    gui.running.store (internalRunning);
+    gui.running.store (settings.enabled && arp.isRunning());
     gui.hostPlaying.store (hostPlaying);
-    gui.currentStep.store (internalRunning ? sequencer.getCurrentStep() : -1);
-    gui.bpm.store ((float) bpm);
+    gui.currentStep.store (settings.enabled ? arp.getCurrentStep() : -1);
     gui.filterEnv.store (voice.getFilterEnv());
     gui.accentCharge.store (voice.getAccentCharge());
     gui.cutoffHz.store (voice.getLastCutoffHz());
     gui.gateOn.store (voice.isGateOn());
     for (int i = 0; i < 2; ++i) gui.lfoPhase[i].store ((float) lfos[i].getPhase());
     for (int b = 0; b < 3; ++b) gui.bandLevel[b].store (tube.getBandLevel (b));
-}
-
-//==============================================================================
-void AcidAudioProcessor::computeModulation (int start, int end) noexcept
-{
-    const int n = end - start;
-    if (n <= 0)
-        return;
-
-    voiceMod = {};
-    bool used[NumLfoDests] {};
-    for (int i = 0; i < 2; ++i)
-        if (std::abs (lfoDepthNow[i]) > 0.0f)
-            used[jlimit (0, NumLfoDests - 1, lfoDestNow[i])] = true;
-
-    if (used[DestCutoff]) { std::fill (modCutoff + start, modCutoff + end, 0.0f); voiceMod.cutoffOct  = modCutoff; }
-    if (used[DestPitch])  { std::fill (modPitch + start, modPitch + end, 0.0f);   voiceMod.pitchSemis = modPitch; }
-    if (used[DestWave])   { std::fill (modWave + start, modWave + end, 0.0f);     voiceMod.wave       = modWave; }
-    if (used[DestReso])   { std::fill (modReso + start, modReso + end, 0.0f);     voiceMod.resonance  = modReso; }
-    if (used[DestVolume]) { std::fill (modVolume + start, modVolume + end, 1.0f); voiceMod.volume     = modVolume; }
-
-    const bool positionValid = hostPlaying || internalRunning;
-    for (int i = 0; i < 2; ++i)
-    {
-        // rate: tempo divisions or Hz
-        double cyclesPerSecond, cyclesPerBeat;
-        if (P.lfoSync[i]->load() > 0.5f)
-        {
-            const auto& divs = lfoDivisions();
-            const double beats = divs[(size_t) divisionIndex (P.lfoRate[i]->load(), (int) divs.size())].beats;
-            cyclesPerBeat = 1.0 / beats;
-            cyclesPerSecond = cyclesPerBeat * bpm / 60.0;
-        }
-        else
-        {
-            cyclesPerSecond = lfoFreeHz (P.lfoRate[i]->load());
-            cyclesPerBeat = cyclesPerSecond * 60.0 / bpm;
-        }
-
-        float* buf = lfoBuf[i] + start;
-        lfos[i].process (buf, n, cyclesPerSecond, cyclesPerBeat, positionValid, ppqAt (chunkOffset + start), ppqPerSample);
-
-        const float d = lfoDepthNow[i];
-        if (d == 0.0f)
-            continue;
-
-        switch (lfoDestNow[i])
-        {
-            case DestCutoff: for (int k = 0; k < n; ++k) modCutoff[start + k] += buf[k] * d * 4.0f;  break;   // +-4 octaves
-            case DestPitch:  for (int k = 0; k < n; ++k) modPitch[start + k]  += buf[k] * d * 12.0f; break;   // +-12 st
-            case DestWave:   for (int k = 0; k < n; ++k) modWave[start + k]   += buf[k] * d;         break;
-            case DestReso:   for (int k = 0; k < n; ++k) modReso[start + k]   += buf[k] * d;         break;
-            case DestVolume:
-            {
-                const float s = d > 0.0f ? 1.0f : -1.0f, a = std::abs (d);
-                for (int k = 0; k < n; ++k)
-                    modVolume[start + k] *= jmax (0.0f, 1.0f + 0.5f * a * (s * buf[k] - 1.0f));
-                break;
-            }
-            default: break;
-        }
-    }
-}
-
-void AcidAudioProcessor::applyVoiceEvent (const SeqEvent& e, bool fromSequencer, MidiBuffer& midiOut, int sampleInBlock) noexcept
-{
-    if (e.type == SeqEvent::NoteOn)
-    {
-        voice.noteOn (e.note, e.accent, e.legato);
-        if (! e.legato)
-            for (auto& l : lfos) l.noteTriggered();
-    }
-    else
-    {
-        voice.noteOff();
-    }
-
-    if (! fromSequencer || ! midiOutEnabled.load())
-        return;
-
-    // sequencer -> host MIDI out (slides as overlapping notes)
-    if (e.type == SeqEvent::NoteOn)
-    {
-        const int vel = e.accent ? 127 : 100;
-        if (e.legato && midiOutNote >= 0)
-        {
-            if (midiOutNote != e.note)
-            {
-                midiOut.addEvent (MidiMessage::noteOn (1, e.note, (uint8) vel), sampleInBlock);
-                midiOut.addEvent (MidiMessage::noteOff (1, midiOutNote), sampleInBlock);
-            }
-        }
-        else
-        {
-            if (midiOutNote >= 0)
-                midiOut.addEvent (MidiMessage::noteOff (1, midiOutNote), sampleInBlock);
-            midiOut.addEvent (MidiMessage::noteOn (1, e.note, (uint8) vel), sampleInBlock);
-        }
-        midiOutNote = e.note;
-    }
-    else if (midiOutNote >= 0)
-    {
-        midiOut.addEvent (MidiMessage::noteOff (1, midiOutNote), sampleInBlock);
-        midiOutNote = -1;
-    }
-}
-
-void AcidAudioProcessor::processChunk (float* left, float* right, int numSamples, int chunkStart,
-                                       const MidiBuffer& midiIn, MidiBuffer& midiOut, const Pattern& pattern) noexcept
-{
-    chunkOffset = chunkStart;
-    int pos = 0;
-
-    auto renderTo = [&] (int end)
-    {
-        end = jlimit (pos, numSamples, end);
-        if (end <= pos) return;
-        computeModulation (pos, end);
-        voice.render (left + pos, right + pos, end - pos, voiceMod, pos);
-        pos = end;
-    };
-
-    const bool seqEnabled = P.seqOn->load() > 0.5f;
-    const bool keyMode = P.keyMode->load() > 0.5f;
-
-    // Runs the sequencer over [from, to) of this chunk and renders up to `to`.
-    auto runSequencer = [&] (int from, int to)
-    {
-        if (to <= from) return;
-
-        const bool keyHeld = numHeldKeys > 0;
-        const bool running = seqEnabled && (keyMode ? keyHeld : (hostPlaying || internalPlayState));
-        keyClockRunning = keyMode && keyHeld && ! hostPlaying;
-        internalRunning = running;
-
-        if (running && directVoiceActive)
-        {
-            voice.noteOff();
-            directVoiceActive = false;
-            numHeldNotes = 0;
-        }
-
-        SeqTransport tr;
-        tr.running = running;
-        tr.ppqStart = ppqAt (chunkStart + from);
-        tr.ppqPerSample = ppqPerSample;
-        const int keyTranspose = keyMode && keyHeld ? heldKeys[(size_t) numHeldKeys - 1] - 60 : 0;
-
-        if (seqEnabled || sequencer.isGateOn())
-        {
-            const int count = sequencer.process (pattern, tr, to - from, keyTranspose, seqEvents);
-            for (int i = 0; i < count; ++i)
-            {
-                renderTo (from + seqEvents[i].offset);
-                applyVoiceEvent (seqEvents[i], true, midiOut, chunkStart + from + seqEvents[i].offset);
-            }
-        }
-        renderTo (to);
-    };
-
-    for (const auto meta : midiIn)
-    {
-        const int at = meta.samplePosition - chunkStart;
-        if (at < 0) continue;
-        if (at >= numSamples) break;
-
-        runSequencer (pos, at);
-        const auto msg = meta.getMessage();
-
-        auto removeFrom = [] (std::array<int, 16>& stack, int& count, int note)
-        {
-            for (int i = 0; i < count; ++i)
-                if (stack[(size_t) i] == note)
-                {
-                    for (int j = i; j < count - 1; ++j) stack[(size_t) j] = stack[(size_t) j + 1];
-                    --count;
-                    return true;
-                }
-            return false;
-        };
-
-        const bool sequencerOwnsNotes = seqEnabled && (keyMode || internalRunning);
-
-        if (msg.isNoteOn())
-        {
-            const int note = msg.getNoteNumber();
-            if (seqEnabled && keyMode)
-            {
-                removeFrom (heldKeys, numHeldKeys, note);
-                if (numHeldKeys == 0 && ! hostPlaying)
-                {
-                    // the first key starts the pattern from step 1 right here
-                    internalBlockStart = -ppqPerSample * (chunkStart + at);
-                    sequencer.reset();
-                }
-                if (numHeldKeys < 16) heldKeys[(size_t) numHeldKeys++] = note;
-            }
-            else if (! sequencerOwnsNotes)
-            {
-                const bool legato = numHeldNotes > 0;
-                removeFrom (heldNotes, numHeldNotes, note);
-                if (numHeldNotes < 16) heldNotes[(size_t) numHeldNotes++] = note;
-                applyVoiceEvent ({ at, SeqEvent::NoteOn, note, msg.getVelocity() >= 100, legato }, false, midiOut, chunkStart + at);
-                directVoiceActive = true;
-            }
-        }
-        else if (msg.isNoteOff())
-        {
-            const int note = msg.getNoteNumber();
-            removeFrom (heldKeys, numHeldKeys, note);
-
-            const bool wasTop = numHeldNotes > 0 && heldNotes[(size_t) numHeldNotes - 1] == note;
-            if (removeFrom (heldNotes, numHeldNotes, note) && wasTop && directVoiceActive)
-            {
-                if (numHeldNotes > 0)
-                    applyVoiceEvent ({ at, SeqEvent::NoteOn, heldNotes[(size_t) numHeldNotes - 1], false, true }, false, midiOut, chunkStart + at);
-                else
-                {
-                    applyVoiceEvent ({ at, SeqEvent::NoteOff, note, false, false }, false, midiOut, chunkStart + at);
-                    directVoiceActive = false;
-                }
-            }
-        }
-        else if (msg.isAllNotesOff() || msg.isAllSoundOff())
-        {
-            numHeldNotes = numHeldKeys = 0;
-            voice.noteOff();
-            directVoiceActive = false;
-        }
-    }
-
-    runSequencer (pos, numSamples);
-}
-
-//==============================================================================
-// Patterns
-//==============================================================================
-int AcidAudioProcessor::getCurrentSlot() const
-{
-    return jlimit (0, kNumPatterns - 1, roundToInt (apvts.getRawParameterValue (ParamIDs::pattern)->load()) - 1);
-}
-
-void AcidAudioProcessor::editPattern (int slot, const std::function<void (Pattern&)>& edit, bool undoable)
-{
-    slot = jlimit (0, kNumPatterns - 1, slot);
-    const Pattern before = bank[(size_t) slot];
-    edit (bank[(size_t) slot]);
-    if (bank[(size_t) slot] == before)
-        return;
-    if (undoable)
-        patternUndo.push (slot, before);
-    exchange.publish (bank);
-    patternVersion.fetch_add (1);
-}
-
-void AcidAudioProcessor::setBank (const PatternBank& newBank)
-{
-    bank = newBank;
-    exchange.publish (bank);
-    patternVersion.fetch_add (1);
-}
-
-void AcidAudioProcessor::undoPattern()
-{
-    if (patternUndo.undoInto (bank))
-    {
-        exchange.publish (bank);
-        patternVersion.fetch_add (1);
-    }
-}
-
-void AcidAudioProcessor::redoPattern()
-{
-    if (patternUndo.redoInto (bank))
-    {
-        exchange.publish (bank);
-        patternVersion.fetch_add (1);
-    }
-}
-
-void AcidAudioProcessor::copyPattern()
-{
-    clipboard = bank[(size_t) getCurrentSlot()];
-    clipboardValid = true;
-}
-
-void AcidAudioProcessor::pastePattern()
-{
-    if (clipboardValid)
-        editPattern (getCurrentSlot(), [this] (Pattern& p) { p = clipboard; });
-}
-
-void AcidAudioProcessor::randomisePattern (PatternTools::RandomMode mode)
-{
-    const uint32_t seed = (uint32_t) Time::getMillisecondCounter() + randomSeed++;
-    editPattern (getCurrentSlot(), [&] (Pattern& p) { PatternTools::randomise (p, mode, randomRoot, randomScale, seed); });
-}
-
-void AcidAudioProcessor::mutatePattern()
-{
-    const uint32_t seed = (uint32_t) Time::getMillisecondCounter() + randomSeed++;
-    editPattern (getCurrentSlot(), [&] (Pattern& p) { PatternTools::mutate (p, randomRoot, randomScale, seed); });
-}
-
-void AcidAudioProcessor::rotatePattern (int direction)
-{
-    editPattern (getCurrentSlot(), [direction] (Pattern& p) { PatternTools::rotate (p, direction); });
-}
-
-void AcidAudioProcessor::clearPattern()
-{
-    editPattern (getCurrentSlot(), [] (Pattern& p) { PatternTools::clear (p); });
+    publishHeldNotes();
 }
 
 //==============================================================================
@@ -706,7 +903,7 @@ void AcidAudioProcessor::initSound()
 {
     for (auto* param : getParameters())
         if (auto* ranged = dynamic_cast<RangedAudioParameter*> (param))
-            if (ranged->getParameterID() != ParamIDs::pattern)
+            if (! ranged->getParameterID().startsWith ("rnd") && ! ranged->getParameterID().startsWith ("export"))
             {
                 ranged->beginChangeGesture();
                 ranged->setValueNotifyingHost (ranged->getDefaultValue());
@@ -734,19 +931,11 @@ void AcidAudioProcessor::getStateInformation (MemoryBlock& destData)
     state.setProperty ("lightTheme", gui.lightTheme.load(), nullptr);
     state.setProperty ("page", gui.page.load(), nullptr);
     state.setProperty ("presetName", presets.getCurrentName(), nullptr);
-    state.setProperty ("randomRoot", randomRoot, nullptr);
-    state.setProperty ("randomScale", randomScale, nullptr);
-    state.setProperty ("midiOut", midiOutEnabled.load(), nullptr);
+    state.setProperty (sequencePathID, currentSequence.getFullPathName(), nullptr);
+    state.setProperty (seedID, (int64) randomSeed, nullptr);
 
-    ValueTree patternsTree ("Patterns");
-    for (auto& pat : bank)
-    {
-        ValueTree pt ("Pattern");
-        pt.setProperty ("data", String (patternToString (pat)), nullptr);
-        patternsTree.appendChild (pt, nullptr);
-    }
-    state.removeChild (state.getChildWithName ("Patterns"), nullptr);
-    state.appendChild (patternsTree, nullptr);
+    state.removeChild (state.getChildWithName (as::arp::PatternModel::treeType), nullptr);
+    state.appendChild (patternModel.toValueTree(), nullptr);
 
     if (auto xml = state.createXml())
         copyXmlToBinary (*xml, destData);
@@ -759,21 +948,35 @@ void AcidAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
         return;
 
     auto state = ValueTree::fromXml (*xml);
-    // (stateVersion is 1 so far; future versions migrate here)
+    restoringState = true;
+
     gui.editorWidth.store ((int) state.getProperty ("editorWidth", 0));
     gui.lightTheme.store ((bool) state.getProperty ("lightTheme", false));
     gui.page.store ((int) state.getProperty ("page", 0));
     presets.setCurrentName (state.getProperty ("presetName", "Init").toString());
-    randomRoot = (int) state.getProperty ("randomRoot", randomRoot);
-    randomScale = (int) state.getProperty ("randomScale", randomScale);
-    midiOutEnabled.store ((bool) state.getProperty ("midiOut", true));
+    {
+        const auto path = state.getProperty (sequencePathID).toString();
+        currentSequence = File::isAbsolutePath (path) ? File (path) : File();
+    }
+    randomSeed = (uint32) (int64) state.getProperty (seedID, 1);
 
-    PatternBank newBank;
-    for (auto& p : newBank) p = makeDefaultPattern();
-    auto patternsTree = state.getChildWithName ("Patterns");
-    for (int i = 0; i < patternsTree.getNumChildren() && i < kNumPatterns; ++i)
-        patternFromString (patternsTree.getChild (i).getProperty ("data").toString().toStdString(), newBank[(size_t) i]);
-    state.removeChild (patternsTree, nullptr);
+    // the pattern: saved by this version, or the first pattern of the original Acid sequencer
+    const auto patternTree = state.getChildWithName (as::arp::PatternModel::treeType);
+    const auto legacyTree = state.getChildWithName ("Patterns");
+    int legacyLength = 0;
+    if (patternTree.isValid())
+    {
+        patternModel.fromValueTree (patternTree);
+    }
+    else if (legacyTree.isValid() && legacyTree.getNumChildren() > 0)
+    {
+        const auto converted = patternFromLegacyString (legacyTree.getChild (0).getProperty ("data").toString().toStdString());
+        patternModel.set (converted.pattern, false);
+        patternModel.clearHistory();
+        legacyLength = converted.length;
+    }
+    state.removeChild (patternTree, nullptr);
+    state.removeChild (legacyTree, nullptr);
 
     apvts.replaceState (state);
 
@@ -787,7 +990,13 @@ void AcidAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
             ranged->setValueNotifyingHost (ranged->convertTo0to1 (v));
         }
 
-    setBank (newBank);
+    restoringState = false;
+    if (legacyLength > 0)
+    {
+        setParameterValue (ParamIDs::seqLength, legacyLength > 16 ? 1.0f : 0.0f);
+        setParameterValue (ParamIDs::seqEnd, (legacyLength == 16 || legacyLength == 32) ? 0.0f : (float) legacyLength);
+    }
+    syncPatternUnits();
 }
 
 //==============================================================================
@@ -796,7 +1005,9 @@ AudioProcessorEditor* AcidAudioProcessor::createEditor()
     return new AcidAudioProcessorEditor (*this);
 }
 
+#if ! ACID_NO_PLUGIN_ENTRY
 AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 {
     return new AcidAudioProcessor();
 }
+#endif

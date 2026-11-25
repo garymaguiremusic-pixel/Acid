@@ -40,10 +40,17 @@ std::vector<PresetManager::Entry> PresetManager::list() const
     return entries;
 }
 
+bool PresetManager::keepsItsValue (const String& id)
+{
+    // like ArpSampler: presets keep your randomiser / export settings, tempo and routing
+    return id.startsWith ("rnd") || id.startsWith ("export") || id == ParamIDs::bpm
+        || id == ParamIDs::midiOut || id == ParamIDs::autoPlay;
+}
+
 void PresetManager::resetAllParameters()
 {
     for (auto* param : processor.getParameters())
-        if (auto* ranged = dynamic_cast<RangedAudioParameter*> (param))
+        if (auto* ranged = dynamic_cast<RangedAudioParameter*> (param); ranged != nullptr && ! keepsItsValue (ranged->getParameterID()))
         {
             ranged->beginChangeGesture();
             ranged->setValueNotifyingHost (ranged->getDefaultValue());
@@ -53,7 +60,7 @@ void PresetManager::resetAllParameters()
 
 void PresetManager::applyParameter (const String& id, float value)
 {
-    if (processor.apvts.getParameter (id) != nullptr)
+    if (processor.apvts.getParameter (id) != nullptr && ! keepsItsValue (id))
         processor.setParameterValue (id, value);
 }
 
@@ -68,11 +75,8 @@ void PresetManager::loadFactory (int index)
     for (auto& [id, value] : preset.params)
         applyParameter (id, value);
 
-    PatternBank bank;
-    for (int i = 0; i < kNumPatterns; ++i)
-        bank[(size_t) i] = i < (int) preset.patterns.size() ? patternFromNotation (preset.patterns[(size_t) i])
-                                                            : patternFromNotation (preset.patterns[0]);
-    processor.setBank (bank);
+    const auto converted = patternFromNotation (preset.pattern);
+    processor.setPattern (converted.pattern, converted.length);
 
     currentName = preset.name;
     currentBank = preset.bank;
@@ -92,12 +96,13 @@ bool PresetManager::loadFile (const File& file)
         for (auto& prop : params->getProperties())
             applyParameter (prop.name.toString(), (float) prop.value);
 
-    PatternBank bank;
-    for (auto& p : bank) p = makeDefaultPattern();
-    if (auto* arr = json.getProperty ("patterns", var()).getArray())
-        for (int i = 0; i < arr->size() && i < kNumPatterns; ++i)
-            patternFromString ((*arr)[i].toString().toStdString(), bank[(size_t) i]);
-    processor.setBank (bank);
+    if (auto xml = parseXML (json.getProperty ("pattern", "").toString()))
+        processor.restorePattern (ValueTree::fromXml (*xml));
+    else if (auto* arr = json.getProperty ("patterns", var()).getArray(); arr != nullptr && ! arr->isEmpty())
+    {
+        const auto converted = patternFromLegacyString ((*arr)[0].toString().toStdString());   // first Acid version
+        processor.setPattern (converted.pattern, converted.length);
+    }
 
     currentName = json.getProperty ("name", file.getFileNameWithoutExtension()).toString();
     currentBank = json.getProperty ("bank", "USER").toString();
@@ -121,10 +126,7 @@ bool PresetManager::saveFile (const File& file, const String& name)
             params->setProperty (ranged->getParameterID(), ranged->convertFrom0to1 (ranged->getValue()));
     root->setProperty ("params", var (params.release()));
 
-    Array<var> patterns;
-    for (auto& p : processor.getBank())
-        patterns.add (String (patternToString (p)));
-    root->setProperty ("patterns", patterns);
+    root->setProperty ("pattern", processor.getPatternModel().toValueTree().toXmlString());
 
     file.getParentDirectory().createDirectory();
     if (! file.replaceWithText (JSON::toString (var (root.release()))))

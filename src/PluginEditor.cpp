@@ -1,5 +1,6 @@
 #include "PluginEditor.h"
 #include "presets/PresetManager.h"
+#include "ui/arp/ArpCompat.h"
 #include <map>
 
 using namespace juce;
@@ -8,8 +9,9 @@ using namespace acid;
 namespace
 {
     constexpr int kW = AcidPanel::kBaseWidth, kH = AcidPanel::kBaseHeight;
-    constexpr int kHeaderH = 58, kTabsY = 64, kTabsH = 26, kContentY = 96, kBottomBarY = 690;
-    const char* kPageNames[] = { "Synth", "Layers", "Tube" };
+    constexpr int kHeaderH = 58, kTabsY = 64, kTabsH = 26, kContentY = 96, kBottomBarY = 870;
+    const char* kPageNames[] = { "Synth / Seq", "Layers", "Tube" };
+    constexpr int kNumPages = 3;
 }
 
 //==============================================================================
@@ -17,6 +19,7 @@ AcidPanel::AcidPanel (AcidAudioProcessor& p)
     : processor (p), synthPage (p), layersPage (p), tubePage (p)
 {
     Theme::setLight (processor.gui.lightTheme.load());
+    VirusColours::refresh();
     lnf.refreshColours();
     setLookAndFeel (&lnf);
     setOpaque (true);
@@ -64,7 +67,7 @@ AcidPanel::AcidPanel (AcidAudioProcessor& p)
     }
 
     // tabs + pages -------------------------------------------------------------------
-    for (int i = 0; i < 3; ++i)
+    for (int i = 0; i < kNumPages; ++i)
     {
         auto& tab = tabs[(size_t) i];
         tab.setButtonText (kPageNames[i]);
@@ -84,7 +87,7 @@ AcidPanel::AcidPanel (AcidAudioProcessor& p)
     // hover help: listen to the mouse over every child
     addMouseListener (this, true);
 
-    showPage (jlimit (0, 2, processor.gui.page.load()));
+    showPage (jlimit (0, kNumPages - 1, processor.gui.page.load()));
     timerCallback();
     startTimerHz (30);
 }
@@ -104,7 +107,7 @@ void AcidPanel::showPage (int page)
     synthPage.setVisible (page == 0);
     layersPage.setVisible (page == 1);
     tubePage.setVisible (page == 2);
-    for (int i = 0; i < 3; ++i)
+    for (int i = 0; i < kNumPages; ++i)
         tabs[(size_t) i].setToggleState (i == page, dontSendNotification);
     repaint();
 }
@@ -113,6 +116,7 @@ void AcidPanel::applyTheme()
 {
     const bool light = processor.gui.lightTheme.load();
     Theme::setLight (light);
+    VirusColours::refresh();
     lightShown = light;
     lnf.refreshColours();
     createBackground();
@@ -135,7 +139,7 @@ void AcidPanel::resized()
     tuneKnob.setBounds (852, 2, 64, 54);
     volumeKnob.setBounds (924, 2, 64, 54);
 
-    for (int i = 0; i < 3; ++i)
+    for (int i = 0; i < kNumPages; ++i)
         tabs[(size_t) i].setBounds (8 + i * 124, kTabsY, 120, kTabsH);
 
     const Rectangle<int> content (0, kContentY, kW, kBottomBarY - kContentY - 4);
@@ -234,12 +238,12 @@ void AcidPanel::paint (Graphics& g)
     // tabs groove, with a small status readout at the right
     AcidLookAndFeel::drawInsetBox (g, { 5.0f, (float) kTabsY - 3.0f, (float) kW - 10.0f, (float) kTabsH + 6.0f }, 4.0f);
     {
-        auto status = Rectangle<float> (640.0f, (float) kTabsY, 350.0f, (float) kTabsH);
+        auto status = Rectangle<float> (650.0f, (float) kTabsY, 340.0f, (float) kTabsH);
         const bool running = processor.gui.running.load();
         g.setFont (AcidLookAndFeel::uiFont (11.0f, true));
         g.setColour (running ? t.accent : t.labelText);
         const int step = processor.gui.currentStep.load();
-        g.drawText (String (processor.gui.bpm.load(), 1) + " BPM    P" + String (processor.getCurrentSlot() + 1).paddedLeft ('0', 2)
+        g.drawText (String (processor.gui.bpm.load(), 1) + (processor.gui.hostTempo.load() ? " BPM HOST" : " BPM INT")
                         + (running && step >= 0 ? "    STEP " + String (step + 1) : String ("    STOPPED")),
                     status.reduced (8.0f, 0.0f), Justification::centredRight);
         // gate LED
@@ -285,9 +289,12 @@ String AcidPanel::helpFor (Component* c) const
     for (auto* comp = c; comp != nullptr && comp != this; comp = comp->getParentComponent())
     {
         if (auto* knob = dynamic_cast<AcidKnob*> (comp))      return knob->getHelpLine();
-        if (auto* grid = dynamic_cast<StepGrid*> (comp))      return grid->getHoverHelp();
+        if (auto* grid = dynamic_cast<ArpStepGrid*> (comp))   return grid->getHoverHelp();
         if (auto* graph = dynamic_cast<BandGraph*> (comp))    return graph->getHoverHelp();
         if (comp->getProperties().contains ("help"))          return comp->getProperties()["help"].toString();
+        if (auto* tip = dynamic_cast<TooltipClient*> (comp))
+            if (auto text = tip->getTooltip(); text.isNotEmpty())
+                return text.replace ("\n", "  ");
     }
     return {};
 }
@@ -400,7 +407,7 @@ void AcidPanel::timerCallback()
         default: tubePage.update(); break;
     }
 
-    repaint (630, kTabsY, 370, kTabsH);   // status readout
+    repaint (640, kTabsY, 360, kTabsH);   // status readout
 }
 
 //==============================================================================

@@ -52,7 +52,7 @@ void TubePage::paint (Graphics& g)
         g.setColour (Theme::get().labelText);
         g.drawText (formatHz (edges[b]) + "  -  " + formatHz (edges[b + 1]), Rectangle<float> (x0 + 12.0f, 148.0f, 180.0f, 14.0f), Justification::centredLeft);
     }
-    AcidLookAndFeel::drawPanel (g, { 8.0f, 362.0f, 984.0f, 228.0f }, "Bands");
+    AcidLookAndFeel::drawPanel (g, { 8.0f, 362.0f, 984.0f, (float) getHeight() - 362.0f }, "Bands");
 }
 
 void TubePage::resized()
@@ -80,7 +80,7 @@ void TubePage::resized()
         c.tube.setBounds (x0 + 206, 148, 108, 198);
     }
 
-    graph.setBounds (16, 384, 968, 198);
+    graph.setBounds (16, 384, 968, getHeight() - 392);
 }
 
 void TubePage::update()
