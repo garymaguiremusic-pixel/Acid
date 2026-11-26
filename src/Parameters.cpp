@@ -30,6 +30,17 @@ const std::vector<Division>& lfoDivisions()
     return d;
 }
 
+const std::vector<Division>& ampDivisions()
+{
+    static const std::vector<Division> d =
+    {
+        { "1/64", 1.0 / 16 }, { "1/32 T", 1.0 / 12 }, { "1/32", 0.125 }, { "1/16 T", 1.0 / 6 },
+        { "1/16", 0.25 }, { "1/16 .", 0.375 }, { "1/8 T", 1.0 / 3 }, { "1/8", 0.5 }, { "1/8 .", 0.75 },
+        { "1/4 T", 2.0 / 3 }, { "1/4", 1.0 }, { "1/4 .", 1.5 }, { "1/2", 2.0 }, { "1/1", 4.0 },
+    };
+    return d;
+}
+
 int divisionIndex (float v, int n)    { return jlimit (0, n - 1, roundToInt (norm100 (v) * (float) (n - 1))); }
 float knobForDivision (int i, int n)  { return std::round (100.0f * (float) i / (float) (n - 1)); }
 
@@ -79,9 +90,9 @@ String describeParameter (const String& id, float v)
     if (id == exportRoot)                return v < 0.0f ? String ("Auto") : as::noteName (roundToInt (v));
     if (id == oscBDetune)                return signedText (v, " ct");
     if (id == unisonVoices)              return String (roundToInt (v)) + (roundToInt (v) == 1 ? " voice" : " voices");
-    if (id == ampAttack)                 return formatMs (ampAttackToMs (v));
-    if (id == ampDecay)                  return ampDecayHolds (v) ? String ("Hold") : formatMs (ampDecayToMs (v));
-    if (id == ampRelease)                return formatMs (ampReleaseToMs (v));
+    if (id == ampAttack || id == b3AmpAttack)   return formatMs (ampAttackToMs (v));
+    if (id == ampDecay || id == b3AmpDecay)     return ampDecayHolds (v) ? String ("Hold") : formatMs (ampDecayToMs (v));
+    if (id == ampRelease || id == b3AmpRelease) return formatMs (ampReleaseToMs (v));
     if (id == echoFeedback)              return String (roundToInt (echoFeedbackGain (v) * 100.0f)) + " %";
     if (id == echoLowCut)                return formatHz (echoLowCutHz (v));
     if (id == echoHighCut)               return formatHz (echoHighCutHz (v));
@@ -102,7 +113,7 @@ String helpForParameter (const String& id)
     {
         { tune,        "Master tuning in semitones." },
         { volume,      "Master output level." },
-        { echoOn,      "Echo on/off. Switching off lets the repeats ring out." },
+        { echoOn,      "Delay on / off. Switching off lets the repeats ring out." },
         { tubeOn,      "Three-band tube distortion on / off (click-free)." },
         { wave,        "Oscillator wave: saw, or the square shaped from the saw." },
         { retro,       "Vintage drift: slow pitch wander, per-note variation, softer top end." },
@@ -111,8 +122,8 @@ String helpForParameter (const String& id)
         { resonance,   "Filter resonance. The diode model squelches but never whistles." },
         { transistor,  "Switch the filter from the diode ladder to a transistor ladder." },
         { engine,      "ACID or 303: the synth this page shows. The sequencer plays the one you choose." },
-        { oscAOctave,  "Osc A octave: up or down by whole octaves." },
-        { oscBOctave,  "Osc B octave: up or down by whole octaves." },
+        { oscAOctave,  "Osc 1 octave: up or down by whole octaves." },
+        { oscBOctave,  "Osc 2 octave: up or down by whole octaves." },
         { b3Wave,      "303 waveform: saw, or the square shaped from it." },
         { b3Tuning,    "303 tuning in semitones." },
         { b3Octave,    "303 octave: up or down by whole octaves." },
@@ -131,6 +142,10 @@ String helpForParameter (const String& id)
         { b3WeakAccentCap, "An aged accent capacitor: accents build up further." },
         { b3InfSustain, "The VCA holds while the gate is open instead of decaying." },
         { b3SoftAccent, "A gentler accent." },
+        { b3AmpAttack,  "303 amp attack." },
+        { b3AmpDecay,   "303 amp decay while the gate is held (fully right = hold)." },
+        { b3AmpRelease, "303 amp release after the gate closes." },
+        { b3AmpSync,    "Sync: the 303 amp Attack, Decay and Release in note values from 1/64 to 1/1, following the tempo." },
         { b3VelLink,    "Velocity: the sequencer's Velocity lane (or the keys you play) sets each 303 note's level and filter." },
         { distPageOn,  "Dist: the whole Distortion page on / off." },
         { distOn,      "Saturate / Foldback distortion on / off." },
@@ -139,11 +154,12 @@ String helpForParameter (const String& id)
         { distDrive,   "How hard the distortion is driven." },
         { distAmount,  "Distort: how much of the distorted signal you hear." },
         { filterMode,  "Filter type: low-pass (classic), band-pass or high-pass, all from the same ladder." },
-        { oscALock,    "Phase lock: Osc A (and its unison voices) starts every note at the same point of its wave." },
-        { oscBLock,    "Phase lock: Osc B starts every note at the same point of its wave." },
-        { oscSync,     "Hard sync: Osc B restarts every cycle of Osc A. Bring up Osc B Level and turn its Tune for the sync sweep." },
+        { oscALock,    "Phase lock: Osc 1 (and its unison voices) starts every note at the same point of its wave." },
+        { oscBLock,    "Phase lock: Osc 2 starts every note at the same point of its wave." },
+        { oscSync,     "Hard Sync: Osc 1 is locked to the note and swept up by the Sync knob - the classic tearing sync sound." },
+        { oscSyncPitch, "Sync: how far Osc 1 sweeps above the note while Hard Sync is on (semitones). Turn it for the sync sweep." },
         { fmAmount,    "FM: how far one oscillator modulates the other's pitch." },
-        { fmDirection, "FM direction: A > B (Osc A modulates Osc B: bring up Osc B Level to hear it) or B > A (Osc B modulates Osc A, heard even with Osc B Level at 0)." },
+        { fmDirection, "FM: from > into. 1 > 2: Osc 1 drives Osc 2 (the FM knob brings the modulated Osc 2 in). 2 > 1: Osc 2 drives Osc 1." },
         { rndGlide,    "Randomise: the chance a playing step glides (slides) into the next." },
         { rndLockGlide, "Keep the current glides when randomising." },
         { filterVelLink, "Vel Link: velocity moves the cutoff. The sequencer's Velocity lane when it plays, the keys otherwise." },
@@ -198,6 +214,13 @@ String helpForParameter (const String& id)
         { ampAttack,   "VCA attack." },
         { ampDecay,    "VCA decay while the gate is held (fully right = hold)." },
         { ampRelease,  "VCA release after the gate closes." },
+        { ampSync,     "Sync: the amp Attack, Decay and Release in note values from 1/64 to 1/1, following the tempo." },
+        { distSaturate,  "Saturate on / off: hard, lopsided clipping. Any number of modes can be on; they run one after another." },
+        { distFoldback,  "Foldback on / off: the wave folds back on itself." },
+        { distOverdrive, "Overdrive on / off: a pedal-style hard clip." },
+        { distFuzz,      "Fuzz on / off: square-edged fuzz that sputters as notes fade." },
+        { distScream,    "Scream on / off: a resonant mid peak driven into a hard clip." },
+        { distRectify,   "Rectify on / off: harsh and metallic, an octave of grit on top." },
         { echoSync,    "Echo time in note values (on) or milliseconds (off)." },
         { echoTime,    "Echo time." },
         { echoMix,     "Echo dry/wet (equal power)." },
@@ -210,6 +233,7 @@ String helpForParameter (const String& id)
         { tubeInput,   "Level into the tubes." },
         { tubeOutput,  "Level out of the tubes." },
         { tubeMix,     "Dry/wet of the tube distortion." },
+        { tubeDrive,   "Tube drive: how hard the signal hits the tube." },
         { tubeEdgeLow, "Low edge: below it the signal passes clean." },
         { tubeXover1,  "Crossover between the low and mid bands." },
         { tubeXover2,  "Crossover between the mid and high bands." },
@@ -275,7 +299,7 @@ AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     // Header
     number (tune,   "Tune",   -12.0f, 12.0f, 0.0f);
     number (volume, "Volume", -36.0f, 6.0f, 0.0f);
-    toggle (echoOn, "Echo On", true);
+    toggle (echoOn, "Delay On", true);
     toggle (tubeOn, "Tube On", true);
 
     // Synth
@@ -286,8 +310,8 @@ AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     knob (resonance, "Resonance",  65.0f);
     toggle (transistor, "Transistor", false);
     choice (engine, "Synth", engineNames(), 0);
-    number (oscAOctave, "Osc A Octave", -2.0f, 2.0f, 0.0f);
-    number (oscBOctave, "Osc B Octave", -2.0f, 2.0f, 0.0f);
+    number (oscAOctave, "Osc 1 Octave", -2.0f, 2.0f, 0.0f);
+    number (oscBOctave, "Osc 2 Octave", -2.0f, 2.0f, 0.0f);
 
     // 303 page
     choice (b3Wave, "303 Waveform", b3WaveNames(), 0);
@@ -308,19 +332,30 @@ AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     toggle (b3WeakAccentCap, "303 Weak Accent Cap", false);
     toggle (b3InfSustain,    "303 Infinite Sustain", false);
     toggle (b3SoftAccent,    "303 Soft Accent", false);
+    knob (b3AmpAttack,  "303 Amp Attack",  0.0f);     // 1 ms
+    knob (b3AmpDecay,   "303 Amp Decay",   84.0f);    // ~3.2 s, the hardware's slow VCA decay
+    knob (b3AmpRelease, "303 Amp Release", 0.0f);     // 10 ms
+    toggle (b3AmpSync,  "303 Amp Sync", false);
     toggle (b3VelLink,       "303 Velocity", false);
 
     // Distortion page
     toggle (distPageOn, "Distortion On", true);
     toggle (distOn, "Saturate/Foldback On", false);
+    toggle (distSaturate,  "Dist Saturate", true);
+    toggle (distFoldback,  "Dist Foldback", false);
+    toggle (distOverdrive, "Dist Overdrive", false);
+    toggle (distFuzz,      "Dist Fuzz", false);
+    toggle (distScream,    "Dist Scream", false);
+    toggle (distRectify,   "Dist Rectify", false);
     choice (distMode, "Distortion Mode", distModeNames(), 0);
     knob (distDrive,  "Distortion Drive", 50.0f);
     knob (distAmount, "Distortion Amount", 70.0f);
 
     choice (filterMode, "Filter Type", filterModeNames(), 0);
-    toggle (oscALock, "Osc A Phase Lock", false);
-    toggle (oscBLock, "Osc B Phase Lock", false);
+    toggle (oscALock, "Osc 1 Phase Lock", false);
+    toggle (oscBLock, "Osc 2 Phase Lock", false);
     toggle (oscSync, "Osc Hard Sync", false);
+    number (oscSyncPitch, "Sync Pitch", 0.0f, 48.0f, 12.0f);
     knob (fmAmount, "FM Amount", 0.0f);
     choice (fmDirection, "FM Direction", fmDirectionNames(), 0);
     toggle (filterVelLink, "Filter Velocity Link", false);
@@ -389,22 +424,23 @@ AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     settingChoice (exportChord, "Export Chord", as::getExportChordNames(), 0);
 
     // Layers
-    knob (oscBLevel, "Osc B Level", 0.0f);
-    number (oscBTune,   "Osc B Tune",   -24.0f, 24.0f, 0.0f);
-    number (oscBDetune, "Osc B Detune", -50.0f, 50.0f, 8.0f);
+    knob (oscBLevel, "Osc 2 Level", 0.0f);
+    number (oscBTune,   "Osc 2 Tune",   -24.0f, 24.0f, 0.0f);
+    number (oscBDetune, "Osc 2 Detune", -50.0f, 50.0f, 8.0f);
     number (unisonVoices, "Unison Voices", 1.0f, 8.0f, 1.0f);
     knob (unisonSpread, "Unison Spread", 25.0f);
     toggle (unisonFree, "Unison Free", true);
     knob (ampAttack,  "Amp Attack",  0.0f);    // 1 ms
     knob (ampDecay,   "Amp Decay",   100.0f);  // hold
     knob (ampRelease, "Amp Release", 0.0f);    // 10 ms
-    toggle (echoSync, "Echo Sync", true);
-    knob (echoTime,     "Echo Time",     knobForDivision (8, (int) echoDivisions().size()));   // 1/8
-    knob (echoMix,      "Echo Mix",      15.0f);
-    knob (echoFeedback, "Echo Feedback", 45.0f);
-    knob (echoLowCut,   "Echo Low Cut",  31.0f);   // ~83 Hz
-    knob (echoHighCut,  "Echo High Cut", 49.0f);   // ~4.3 kHz
-    knob (echoWidth,    "Echo Width",    80.0f);
+    toggle (ampSync, "Amp Sync", false);
+    toggle (echoSync, "Delay Sync", true);
+    knob (echoTime,     "Delay Time",     knobForDivision (8, (int) echoDivisions().size()));   // 1/8
+    knob (echoMix,      "Delay Mix",      15.0f);
+    knob (echoFeedback, "Delay Feedback", 45.0f);
+    knob (echoLowCut,   "Delay Low Cut",  31.0f);   // ~83 Hz
+    knob (echoHighCut,  "Delay High Cut", 49.0f);   // ~4.3 kHz
+    knob (echoWidth,    "Delay Width",    80.0f);
 
     for (int i = 0; i < 2; ++i)
     {
@@ -438,6 +474,7 @@ AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     number (tubeInput,  "Tube Input",  -24.0f, 24.0f, 0.0f);
     number (tubeOutput, "Tube Output", -24.0f, 24.0f, 0.0f);
     knob (tubeMix, "Tube Mix", 100.0f);
+    knob (tubeDrive,  "Tube Drive", 30.0f);
 
     return layout;
 }

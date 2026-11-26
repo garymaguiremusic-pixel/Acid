@@ -9,14 +9,19 @@ using namespace acid;
 namespace
 {
     constexpr int kW = AcidPanel::kBaseWidth, kH = AcidPanel::kBaseHeight;
-    constexpr int kHeaderH = 58, kTabsY = 64, kTabsH = 26, kContentY = 96, kBottomBarY = 870;
-    const char* kPageNames[] = { "Synth / Seq", "Layers", "Distortion" };
-    constexpr int kNumPages = 3;
+    constexpr int kHeaderH = 58, kTabsY = 64, kTabsH = 26, kContentY = 96, kBottomBarY = kH - 30;
+    // pages 0 - 1: OSC A (Acid) / B (303) over the sequencer; 2: FX (distortion + delay)
+    const char* kPageNames[] = { "A", "B", "FX" };
+    const char* kPageHelp[] = { "A  -  the Acid synth with Osc 2, Sync / FM, Unison and its amp envelope (it plays; the sequencer stays underneath)",
+                                "B  -  the 303 with its own amp envelope (it plays; the sequencer stays underneath)",
+                                "FX  -  the distortion (six modes), the tube and the delay (the sequencer stays underneath)" };
+    constexpr int kNumPages = 3, kFxPage = 2;
+    constexpr int tabX (int i)   { return 8 + i * 124; }
 }
 
 //==============================================================================
 AcidPanel::AcidPanel (AcidAudioProcessor& p)
-    : processor (p), synthPage (p), layersPage (p), tubePage (p)
+    : processor (p), synthPage (p)
 {
     Theme::setLight (processor.gui.lightTheme.load());
     VirusColours::refresh();
@@ -78,18 +83,17 @@ AcidPanel::AcidPanel (AcidAudioProcessor& p)
     {
         auto& tab = tabs[(size_t) i];
         tab.setButtonText (kPageNames[i]);
-        tab.onClick = [this, i] { showPage (i); };
-        setHelp (tab, String (kPageNames[i]).toUpperCase() + " PAGE");
+        tab.onClick = [this, i]
+        {
+            if (i < 2)      // A / B also choose the synth that plays
+                processor.setParameterValue (ParamIDs::engine, (float) i);
+            showPage (i);
+        };
+        setHelp (tab, kPageHelp[i]);
         addAndMakeVisible (tab);
     }
-    engineButtons = std::make_unique<SegmentedButtons> (*processor.apvts.getParameter (ParamIDs::engine), engineNames(), String());
-    setHelp (*engineButtons, "ACID / 303  -  " + helpForParameter (ParamIDs::engine));
-    addAndMakeVisible (*engineButtons);
-    engineButtons->setBounds (392, kTabsY, 120, kTabsH);
 
-    addChildComponent (synthPage);
-    addChildComponent (layersPage);
-    addChildComponent (tubePage);
+    addAndMakeVisible (synthPage);
 
     helpButton.onClick = [this] { helpOverlay.setVisible (true); helpOverlay.toFront (false); };
     setHelp (helpButton, "HELP  -  quick reference");
@@ -99,7 +103,13 @@ AcidPanel::AcidPanel (AcidAudioProcessor& p)
     // hover help: listen to the mouse over every child
     addMouseListener (this, true);
 
-    showPage (jlimit (0, kNumPages - 1, processor.gui.page.load()));
+    {
+        // open where it was left; A / B follow the synth that plays
+        int page = jlimit (0, kNumPages - 1, processor.gui.page.load());
+        if (page < 2)
+            page = roundToInt (processor.getParameterValue (ParamIDs::engine)) == 1 ? 1 : 0;
+        showPage (page);
+    }
     timerCallback();
     startTimerHz (30);
 }
@@ -116,11 +126,7 @@ void AcidPanel::showPage (int page)
 {
     currentPage = page;
     processor.gui.page.store (page);
-    synthPage.setVisible (page == 0);
-    if (engineButtons != nullptr)
-        engineButtons->setVisible (page == 0);
-    layersPage.setVisible (page == 1);
-    tubePage.setVisible (page == 2);
+    synthPage.setView (page);      // A / B / FX: the section over the sequencer
     for (int i = 0; i < kNumPages; ++i)
         tabs[(size_t) i].setToggleState (i == page, dontSendNotification);
     repaint();
@@ -156,14 +162,10 @@ void AcidPanel::resized()
     volumeKnob.setBounds (924, 2, 64, 54);
 
     for (int i = 0; i < kNumPages; ++i)
-        tabs[(size_t) i].setBounds (8 + i * 124, kTabsY, 120, kTabsH);
-    if (engineButtons != nullptr)
-        engineButtons->setBounds (392, kTabsY, 120, kTabsH);
+        tabs[(size_t) i].setBounds (tabX (i), kTabsY, 120, kTabsH);
 
     const Rectangle<int> content (0, kContentY, kW, kBottomBarY - kContentY - 4);
     synthPage.setBounds (content);
-    layersPage.setBounds (content);
-    tubePage.setBounds (content);
 
     helpButton.setBounds (kW - 28, kBottomBarY + 5, 20, 20);
     helpOverlay.setBounds (getLocalBounds());
@@ -261,7 +263,9 @@ void AcidPanel::paint (Graphics& g)
         g.setFont (AcidLookAndFeel::uiFont (11.0f, true));
         g.setColour (running ? t.accent : t.labelText);
         const int step = processor.gui.currentStep.load();
-        g.drawText (String (processor.gui.bpm.load(), 1) + (processor.gui.hostTempo.load() ? " BPM HOST" : " BPM INT")
+        const bool plays303 = roundToInt (processor.getParameterValue (ParamIDs::engine)) == 1;
+        g.drawText (String (plays303 ? "PLAYS B    " : "PLAYS A    ")
+                        + String (processor.gui.bpm.load(), 1) + (processor.gui.hostTempo.load() ? " BPM HOST" : " BPM INT")
                         + (running && step >= 0 ? "    STEP " + String (step + 1) : String ("    STOPPED")),
                     status.reduced (8.0f, 0.0f), Justification::centredRight);
         // gate LED
@@ -308,7 +312,6 @@ String AcidPanel::helpFor (Component* c) const
     {
         if (auto* knob = dynamic_cast<AcidKnob*> (comp))      return knob->getHelpLine();
         if (auto* grid = dynamic_cast<ArpStepGrid*> (comp))   return grid->getHoverHelp();
-        if (auto* graph = dynamic_cast<BandGraph*> (comp))    return graph->getHoverHelp();
         if (comp->getProperties().contains ("help"))          return comp->getProperties()["help"].toString();
         if (auto* tip = dynamic_cast<TooltipClient*> (comp))
             if (auto text = tip->getTooltip(); text.isNotEmpty())
@@ -420,11 +423,17 @@ void AcidPanel::timerCallback()
     if (hovered != nullptr)
         display.setHelpText (helpFor (hovered.getComponent()));
 
+    // A / B follow the synth that plays (it can change from the host or a preset)
+    if (currentPage < 2)
+    {
+        const int engine = roundToInt (processor.getParameterValue (ParamIDs::engine)) == 1 ? 1 : 0;
+        if (engine != currentPage)
+            showPage (engine);
+    }
+
     switch (currentPage)
     {
-        case 0:  synthPage.update(); break;
-        case 1:  layersPage.update(); break;
-        default: tubePage.update(); break;
+        default:              synthPage.update(); break;
     }
 
     repaint (640, kTabsY, 360, kTabsH);   // status readout

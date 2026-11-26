@@ -221,15 +221,15 @@ void HelpOverlay::paint (Graphics& g)
     const char* lines[] =
     {
         "SYNTH:  oscillator (Saw / Square, Retro), diode or transistor ladder filter, envelope with Accent and Acc Sweep.",
-        "ARPEGGIATOR:  Step mode plays the step sequence from the key you hold (Auto Play: from the Key's root while the host plays).",
-        "    Other modes arpeggiate the held keys. Arp off = the keys play the synth directly (overlapping notes slide).",
+        "ARPEGGIATOR:  Step mode plays the step sequence whenever the host plays (from the Key's root); keys you hold take over.",
+        "    Arp off = the keys play the synth directly (overlapping notes slide). The Velocity lane sets each step's loudness.",
         "STEP SEQUENCER:  Volume (bottom = rest), Velocity, Transpose, Ratchet, Accent and Glide lanes. A Glide to a new pitch",
         "    glides over the GLIDE time. Length 16 / 32, End, Undo / Redo, Clear, Import (MIDI or audio) or drop a file on the grid.",
         "RANDOMISE:  Density, Range, Glide, Ratch, Acc, Vel Lo / Hi, with locks. Scale Lock keeps every step in the Key and Scale.",
         "ACID | 303:  switch the synth (top of Synth / Seq). The sequencer plays the one you choose. 303 Options: VCO model and more.",
-        "LAYERS:  second oscillator, unison, amp envelope, echo (filters inside the loop) and two LFOs.",
-        "DISTORTION:  Saturate / Foldback (Drive, Distort) and the three-band tube, each with its own ON. Dist = the whole page.",
-        "Knobs move in whole steps (drag or mouse wheel, one notch = 1). Double-click = default. Drag the corner to resize.",
+        "LAYERS:  Osc B, Hard Sync and FM, unison, amp envelope (tempo Sync), echo and two LFOs. They apply to Acid and 303.",
+        "DISTORTION:  six modes, any number on at once (Drive, Distort), and the three-band tube, each with its own ON. Dist = the whole page.",
+        "Knobs move in whole steps (drag or mouse wheel, one notch = 1). Double-click = zero. Drag the corner to resize.",
         "",
         "Click anywhere to close."
     };
@@ -266,19 +266,26 @@ void OctaveStepper::step (int delta)
 void OctaveStepper::resized()
 {
     auto b = getLocalBounds();
-    down.setBounds (b.removeFromLeft (24));
-    up.setBounds (b.removeFromRight (24));
+    const int arrow = jmin (24, getWidth() / 4);
+    down.setBounds (b.removeFromLeft (arrow));
+    up.setBounds (b.removeFromRight (arrow));
 }
 
 void OctaveStepper::paint (Graphics& g)
 {
-    auto b = getLocalBounds().toFloat().reduced (26.0f, 0.0f);
+    const float arrow = (float) jmin (24, getWidth() / 4);
+    auto b = getLocalBounds().toFloat().reduced (arrow + 2.0f, 0.0f);
     AcidLookAndFeel::drawLcd (g, b.reduced (0.0f, 1.0f));
     g.setFont (AcidLookAndFeel::uiFont (11.0f, true));
-    g.setColour (Colour (0xffc8c8cc));
-    g.drawText ("OCT", b.reduced (6.0f, 0.0f), Justification::centredLeft);
+    const String number = (value > 0 ? "+" : "") + String (value);
+    const bool roomy = b.getWidth() >= 54.0f;      // narrow: just the number, centred
+    if (roomy)
+    {
+        g.setColour (Colour (0xffc8c8cc));
+        g.drawText ("OCT", b.reduced (6.0f, 0.0f), Justification::centredLeft);
+    }
     g.setColour (value == 0 ? Colour (0xffc8c8cc) : Theme::get().accent);
-    g.drawText ((value > 0 ? "+" : "") + String (value), b.reduced (6.0f, 0.0f), Justification::centredRight);
+    g.drawText (number, b.reduced (roomy ? 6.0f : 0.0f, 0.0f), roomy ? Justification::centredRight : Justification::centred);
 }
 
 void OctaveStepper::mouseWheelMove (const MouseEvent&, const MouseWheelDetails& wheel)

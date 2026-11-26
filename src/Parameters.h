@@ -56,6 +56,10 @@ namespace ParamIDs
     inline constexpr auto b3WeakAccentCap = "b3WeakAccentCap";
     inline constexpr auto b3InfSustain    = "b3InfSustain";
     inline constexpr auto b3SoftAccent    = "b3SoftAccent";
+    inline constexpr auto b3AmpAttack     = "b3AmpAttack";     // the 303's own amp envelope
+    inline constexpr auto b3AmpDecay      = "b3AmpDecay";
+    inline constexpr auto b3AmpRelease    = "b3AmpRelease";
+    inline constexpr auto b3AmpSync       = "b3AmpSync";
     inline constexpr auto b3VelLink       = "b3VelLink";      // the sequencer's Velocity lane plays the 303
 
     // Distortion page
@@ -64,11 +68,20 @@ namespace ParamIDs
     inline constexpr auto distMode        = "distMode";
     inline constexpr auto distDrive       = "distDrive";
     inline constexpr auto distAmount      = "distAmount";
+    // the six distortion modes, each on / off (any number at once)
+    inline constexpr auto distSaturate    = "distSaturate";
+    inline constexpr auto distFoldback    = "distFoldback";
+    inline constexpr auto distOverdrive   = "distOverdrive";
+    inline constexpr auto distFuzz        = "distFuzz";
+    inline constexpr auto distScream      = "distScream";
+    inline constexpr auto distRectify     = "distRectify";
+    inline const char* const distModeIds[] = { distSaturate, distFoldback, distOverdrive, distFuzz, distScream, distRectify };
 
     inline constexpr auto filterMode      = "filterMode";
     inline constexpr auto oscALock        = "oscALock";
     inline constexpr auto oscBLock        = "oscBLock";
     inline constexpr auto oscSync         = "oscSync";        // hard sync: Osc B restarts with Osc A
+    inline constexpr auto oscSyncPitch    = "oscSyncPitch";   // Hard Sync: how far Osc A sweeps above the note
     inline constexpr auto fmAmount        = "fmAmount";
     inline constexpr auto fmDirection     = "fmDirection";    // A > B or B > A
     inline constexpr auto filterVelLink   = "filterVelLink";
@@ -133,6 +146,7 @@ namespace ParamIDs
     inline constexpr auto ampAttack   = "ampAttack";
     inline constexpr auto ampDecay    = "ampDecay";
     inline constexpr auto ampRelease  = "ampRelease";
+    inline constexpr auto ampSync     = "ampSync";       // the amp envelope times in note values
     inline constexpr auto echoSync    = "echoSync";
     inline constexpr auto echoTime    = "echoTime";
     inline constexpr auto echoMix     = "echoMix";
@@ -140,6 +154,7 @@ namespace ParamIDs
     inline constexpr auto echoLowCut  = "echoLowCut";
     inline constexpr auto echoHighCut = "echoHighCut";
     inline constexpr auto echoWidth   = "echoWidth";
+
 
     // LFO 1 / 2: "lfo1Rate", "lfo2Rate" ...
     inline juce::String lfo (int index, const char* name) { return "lfo" + juce::String (index + 1) + name; }
@@ -154,6 +169,7 @@ namespace ParamIDs
     inline constexpr auto tubeInput    = "tubeInput";
     inline constexpr auto tubeOutput   = "tubeOutput";
     inline constexpr auto tubeMix      = "tubeMix";
+    inline constexpr auto tubeDrive    = "tubeDrive";      // the single tube's drive (one band)
 
     // Bands 0..2: "tubeLowDrive", "tubeMidGain", "tubeHighSolo" ...
     inline juce::String band (int index, const char* name)
@@ -171,7 +187,7 @@ inline juce::StringArray engineNames()     { return { "ACID", "303" }; }
 inline juce::StringArray b3WaveNames()     { return { "SAW", "SQR" }; }
 inline juce::StringArray b3ModelNames()    { return { "Classic", "Stable", "Drift" }; }
 inline juce::StringArray distModeNames()   { return { "SATURATE", "FOLDBACK", "OVERDRIVE", "FUZZ", "SCREAM", "RECTIFY" }; }
-inline juce::StringArray fmDirectionNames() { return { "A > B", "B > A" }; }
+inline juce::StringArray fmDirectionNames() { return { "1 > 2", "2 > 1" }; }
 inline juce::StringArray lfoShapeNames()   { return { "Sine", "Triangle", "Saw Up", "Saw Down", "Square", "S&H", "Smooth Random" }; }
 inline juce::StringArray lfoShapeShort()   { return { "SINE", "TRI", "SAW UP", "SAW DN", "SQUARE", "S&H", "SMOOTH" }; }
 inline juce::StringArray lfoRetrigNames()  { return { "Free", "Note", "Bar" }; }
@@ -201,6 +217,7 @@ inline float lfoFreeHz (float v)        { return expMap (v, 0.05f, 20.0f); }
 struct Division { const char* name; double beats; };
 const std::vector<Division>& echoDivisions();
 const std::vector<Division>& lfoDivisions();
+const std::vector<Division>& ampDivisions();
 int divisionIndex (float knobValue, int numDivisions);
 float knobForDivision (int index, int numDivisions);
 

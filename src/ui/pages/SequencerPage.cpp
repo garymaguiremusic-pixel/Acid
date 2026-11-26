@@ -61,7 +61,6 @@ SequencerPage::SequencerPage (AcidAudioProcessor& p)
         attach (*button, id);
 
     attach (scaleLockButton, ParamIDs::scaleLock);
-    attach (fileNotesButton, rndFileNotes);
     attach (keyBox, ParamIDs::scaleKey);
     attach (scaleBox, ParamIDs::scale);
 
@@ -129,8 +128,7 @@ void SequencerPage::resized()
         locks[i]->setBounds (rx + 52 + i * 90, ry + 142, 72, 22);
     scaleLockButton.setBounds (rx + 10, ry + 174, 110, 26);
     keyBox.setBounds (rx + 128, ry + 174, 70, 26);
-    scaleBox.setBounds (rx + 206, ry + 174, 180, 26);
-    fileNotesButton.setBounds (rx + 394, ry + 174, 194, 26);
+    scaleBox.setBounds (rx + 206, ry + 174, 382, 26);
     dragMidi.setBounds (rx + 10, ry + 226, 120, 30);
     exportBarsBox.setBounds (rx + 196, ry + 230, 110, 24);
     exportRootBox.setBounds (rx + 314, ry + 230, 110, 24);
@@ -146,9 +144,6 @@ void SequencerPage::update()
     swingLcd.setContent ("SWING", describeParameter (ParamIDs::arpSwing, value (ParamIDs::arpSwing)));
     tempoField.setTempo (processor.getTempo(), processor.isTempoFromHost());
 
-    const int poolNotes = processor.getPatternModel().get().numPoolNotes();
-    fileNotesButton.setButtonText (poolNotes > 0 ? "File Notes (" + String (poolNotes) + ")" : String ("File Notes"));
-    fileNotesButton.setEnabled (poolNotes > 0);
     exportChordBox.setEnabled (processor.getLastHeldNotes().empty());
     randomUndoButton.setEnabled (processor.getPatternModel().canUndo());
 }

@@ -106,8 +106,9 @@ void AcidKnob::mouseUp (const MouseEvent&)
 
 void AcidKnob::mouseDoubleClick (const MouseEvent&)
 {
+    // double-click: back to zero (or the lowest value, for a knob that can't reach zero)
     if (isEnabled())
-        setValueWithGesture (defaultValue);
+        setValueWithGesture (getMinimum() <= 0.0 && getMaximum() >= 0.0 ? 0.0 : getMinimum());
 }
 
 void AcidKnob::mouseWheelMove (const MouseEvent&, const MouseWheelDetails& wheel)

@@ -3,24 +3,26 @@
 using namespace juce;
 using namespace acid;
 
-namespace { const char* kBandTitles[] = { "Low", "Mid", "High" }; }
 
 TubePage::TubePage (AcidAudioProcessor& p)
-    : PageBase (p), graph (p),
-      distModeButtons (*p.apvts.getParameter (ParamIDs::distMode), distModeNames(), {})
+    : PageBase (p)
 {
     using namespace ParamIDs;
 
     // Saturate / Foldback
     attach (distOnButton, distOn);
     setHelp (distOnButton, "ON  -  " + helpForParameter (distOn));
-    distModeButtons.setRows (2);
-    addAndMakeVisible (distModeButtons);
-    setHelp (distModeButtons, "MODE  -  " + helpForParameter (distMode));
+    const auto names = distModeNames();
+    for (int i = 0; i < names.size(); ++i)
+    {
+        auto* b = modeButtons.add (new TextButton (names[i]));
+        attach (*b, distModeIds[i]);
+        setHelp (*b, names[i] + "  -  " + helpForParameter (distModeIds[i]));
+    }
     attach (distDrive, ParamIDs::distDrive);
     attach (distAmount, ParamIDs::distAmount);
 
-    // the three-band tube
+    // the tube (one band)
     attach (tubeOnButton, tubeOn);
     setHelp (tubeOnButton, "ON  -  " + helpForParameter (tubeOn));
     generateButton.onClick = [this] { processor.generateTube(); };
@@ -40,96 +42,98 @@ TubePage::TubePage (AcidAudioProcessor& p)
     attach (output, tubeOutput);
     attach (mix, tubeMix);
 
-    for (int b = 0; b < 3; ++b)
+    attach (tubeDrive, ParamIDs::tubeDrive);
+    addAndMakeVisible (tube);
+    setHelp (tube, "TUBE  -  glows with the drive and the level");
+    addAndMakeVisible (tubeDriveLcd);
+    setHelp (tubeDriveLcd, "TUBE DRIVE");
+
+
+    // Delay
+    attach (delayOn, ParamIDs::echoOn);
+    attach (delaySync, ParamIDs::echoSync);
+    attach (delayTime, ParamIDs::echoTime);
+    attach (delayMix, ParamIDs::echoMix);
+    attach (delayFeedback, ParamIDs::echoFeedback);
+    attach (delayLowCut, ParamIDs::echoLowCut);
+    attach (delayHighCut, ParamIDs::echoHighCut);
+    attach (delayWidth, ParamIDs::echoWidth);
+    addAndMakeVisible (delayLcd);
+    setHelp (delayLcd, "DELAY  -  the current delay time");
+    delayTime.displayValue = [this] (double v)
     {
-        auto& c = bands[b];
-        attach (c.drive, band (b, "Drive"));
-        attach (c.gain, band (b, "Gain"));
-        attach (c.solo, band (b, "Solo"));
-        addAndMakeVisible (c.tube);
-        setHelp (c.tube, String (kBandTitles[b]).toUpperCase() + " TUBE  -  glows with the band's drive and level");
-        addAndMakeVisible (c.driveLcd);
-        setHelp (c.driveLcd, String (kBandTitles[b]).toUpperCase() + " DRIVE");
-    }
-    addAndMakeVisible (graph);
+        if (value (ParamIDs::echoSync) > 0.5f)
+            return String (echoDivisions()[(size_t) divisionIndex ((float) v, (int) echoDivisions().size())].name);
+        return formatMs (echoFreeMs ((float) v));
+    };
 }
 
 void TubePage::paint (Graphics& g)
 {
-    AcidLookAndFeel::drawPanel (g, { 8.0f, 0.0f, 984.0f, 150.0f }, "Distortion");
-    AcidLookAndFeel::drawSmallLabel (g, "Mode", { 300.0f, 40.0f, 150.0f, 12.0f }, Justification::centredLeft);
-    AcidLookAndFeel::drawPanel (g, { 8.0f, 156.0f, 984.0f, 120.0f }, "Tube  -  three bands");
-    const float edges[4] = { value (ParamIDs::tubeEdgeLow), value (ParamIDs::tubeXover1),
-                             value (ParamIDs::tubeXover2), value (ParamIDs::tubeEdgeHigh) };
-    for (int b = 0; b < 3; ++b)
-    {
-        const float x0 = 8.0f + 330.0f * (float) b;
-        AcidLookAndFeel::drawPanel (g, { x0, 282.0f, 324.0f, 230.0f }, kBandTitles[b]);
-        g.setFont (AcidLookAndFeel::uiFont (11.0f, true));
-        g.setColour (Theme::get().labelText);
-        g.drawText (formatHz (edges[b]) + "  -  " + formatHz (edges[b + 1]), Rectangle<float> (x0 + 12.0f, 304.0f, 180.0f, 14.0f), Justification::centredLeft);
-    }
-    AcidLookAndFeel::drawPanel (g, { 8.0f, 518.0f, 984.0f, (float) getHeight() - 518.0f }, "Bands");
+    // row 1: Distortion | Delay; row 2: Tube
+    AcidLookAndFeel::drawPanel (g, { 8.0f, 0.0f, 520.0f, 117.0f }, "Distortion");
+    AcidLookAndFeel::drawPanel (g, { 534.0f, 0.0f, 458.0f, 117.0f }, "Delay");
+    AcidLookAndFeel::drawPanel (g, { 8.0f, 123.0f, 984.0f, 117.0f }, "Tube");
 }
 
 void TubePage::resized()
 {
-    // Saturate / Foldback
-    distOnButton.setBounds (24, 30, 90, 28);
-    distModeButtons.setBounds (290, 56, 258, 56);
-    distDrive.setBounds (560, 18, 120, 126);
-    distAmount.setBounds (700, 18, 120, 126);
+    // Distortion: ON, the six modes (any number on), Drive and Distort
+    distOnButton.setBounds (16, 30, 60, 22);
+    for (int i = 0; i < modeButtons.size(); ++i)
+        modeButtons[i]->setBounds (86 + (i % 3) * 84, 34 + (i / 3) * 30, 82, 26);
+    distDrive.setBounds (352, 24, 76, 88);
+    distAmount.setBounds (436, 24, 76, 88);
 
-    // the three-band tube
-    const int ty = 156;
-    tubeOnButton.setBounds (24, ty + 30, 64, 32);
-    generateButton.setBounds (96, ty + 30, 196, 32);
-    undoButton.setBounds (96, ty + 72, 62, 24);
-    initButton.setBounds (163, ty + 72, 62, 24);
-    redoButton.setBounds (230, ty + 72, 62, 24);
+    // Delay: ON over Sync, then six knobs
+    delayOn.setBounds (542, 34, 56, 22);
+    delaySync.setBounds (542, 66, 56, 22);
+    int x = 604;
+    for (auto* k : { &delayTime, &delayMix, &delayFeedback, &delayLowCut, &delayHighCut, &delayWidth })
+    {
+        k->setBounds (x, 24, 62, 88);
+        x += 64;
+    }
+    delayLcd.setVisible (false);
 
-    int x = 330;
+    // Tube: ON / Generate / Undo Init Redo, the five knobs, the big Drive and the tube
+    const int ty = 123;
+    tubeOnButton.setBounds (16, ty + 30, 60, 22);
+    generateButton.setBounds (84, ty + 30, 168, 22);
+    undoButton.setBounds (84, ty + 62, 54, 22);
+    initButton.setBounds (141, ty + 62, 54, 22);
+    redoButton.setBounds (198, ty + 62, 54, 22);
+    x = 280;
     for (auto* k : { &resonator, &character, &input, &output, &mix })
     {
-        k->setBounds (x, ty + 24, 90, 88);
-        x += 128;
+        k->setBounds (x, ty + 24, 70, 88);
+        x += 84;
     }
-
-    for (int b = 0; b < 3; ++b)
-    {
-        const int x0 = 8 + 330 * b;
-        auto& c = bands[b];
-        c.drive.setBounds (x0 + 14, 326, 112, 112);
-        c.driveLcd.setBounds (x0 + 14, 446, 112, 22);
-        c.gain.setBounds (x0 + 132, 344, 66, 78);
-        c.solo.setBounds (x0 + 14, 476, 184, 24);
-        c.tube.setBounds (x0 + 206, 304, 108, 198);
-    }
-
-    graph.setBounds (16, 540, 968, getHeight() - 548);
+    tubeDrive.setBounds (x + 20, ty + 20, 100, 94);
+    tubeDriveLcd.setVisible (false);
+    tube.setBounds (x + 150, ty + 22, 56, 90);
 }
 
 void TubePage::update()
 {
-    for (int b = 0; b < 3; ++b)
+    const float t = value (ParamIDs::echoTime);
+    if (value (ParamIDs::echoOn) < 0.5f)
+        delayLcd.setContent ("DELAY OFF", "tail rings out");
+    else if (value (ParamIDs::echoSync) > 0.5f)
     {
-        const float drive = value (ParamIDs::band (b, "Drive"));
-        const bool active = value (ParamIDs::tubeOn) > 0.5f && value (ParamIDs::distPageOn) > 0.5f;
-        bands[b].tube.setGlow (active ? drive / 100.0f : 0.0f, active ? processor.gui.bandLevel[b].load() : 0.0f);
-        bands[b].driveLcd.setContent ("DRIVE", formatNumber (drive));
+        const auto& d = echoDivisions()[(size_t) divisionIndex (t, (int) echoDivisions().size())];
+        delayLcd.setContent ("TIME " + String (d.name), formatMs ((float) (d.beats * 60000.0 / jmax (20.0f, processor.gui.bpm.load()))));
     }
+    else
+        delayLcd.setContent ("TIME", formatMs (echoFreeMs (t)));
 
-    // repaint the graph and the band ranges only when they change
-    float state[7];
-    state[0] = value (ParamIDs::tubeEdgeLow); state[1] = value (ParamIDs::tubeXover1);
-    state[2] = value (ParamIDs::tubeXover2);  state[3] = value (ParamIDs::tubeEdgeHigh);
-    for (int b = 0; b < 3; ++b) state[4 + b] = value (ParamIDs::band (b, "Gain"));
-    if (! std::equal (std::begin (state), std::end (state), std::begin (lastGraphState)))
-    {
-        std::copy (std::begin (state), std::end (state), std::begin (lastGraphState));
-        graph.repaint();
-        repaint (0, 296, getWidth(), 30);
-    }
+
+    const float drive = value (ParamIDs::tubeDrive);
+    const bool active = value (ParamIDs::tubeOn) > 0.5f && value (ParamIDs::distPageOn) > 0.5f;
+    float level = 0.0f;
+    for (int b = 0; b < 3; ++b) level = jmax (level, processor.gui.bandLevel[b].load());
+    tube.setGlow (active ? drive / 100.0f : 0.0f, active ? level : 0.0f);
+    tubeDriveLcd.setContent ("DRIVE", formatNumber (drive));
 
     undoButton.setEnabled (processor.canUndoTube());
     redoButton.setEnabled (processor.canRedoTube());

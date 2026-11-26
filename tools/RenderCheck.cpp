@@ -129,8 +129,9 @@ int main (int argc, char** argv)
             for (int page = 0; page < 3; ++page)
             {
                 processor->gui.page.store (page);
+                processor->setParameterValue ("engine", page == 1 ? 1.0f : 0.0f);   // B shows when the 303 plays
                 std::unique_ptr<AudioProcessorEditor> editor (processor->createEditor());
-                editor->setSize (1000, 900);
+                editor->setSize (AcidPanel::kBaseWidth, AcidPanel::kBaseHeight);
                 for (int t = 0; t < 5; ++t) { editor->getChildComponent (0)->resized(); }
                 auto image = editor->createComponentSnapshot (editor->getLocalBounds(), true, 1.0f);
                 PNGImageFormat png;
@@ -149,7 +150,7 @@ int main (int argc, char** argv)
         processor->gui.page.store (0);
         processor->setParameterValue ("engine", 1.0f);
         std::unique_ptr<AudioProcessorEditor> editor (processor->createEditor());
-        editor->setSize (1000, 900);
+        editor->setSize (AcidPanel::kBaseWidth, AcidPanel::kBaseHeight);
         auto image = editor->createComponentSnapshot (editor->getLocalBounds(), true, 1.0f);
         auto shot = outDir.getChildFile ("page0_303.png");
         shot.deleteFile();

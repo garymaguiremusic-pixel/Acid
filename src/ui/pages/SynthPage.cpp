@@ -3,25 +3,36 @@
 using namespace juce;
 using namespace acid;
 
+namespace
+{
+    constexpr int kRowH = 117, kRow2Y = 123;
+    constexpr int kOscX = 8, kOscW = 196, kFiltX = 210, kFiltW = 430, kEnvX = 646, kEnvW = 346;
+    constexpr int kKnobY = 26, kKnobW = 54, kKnobH = 78;
+}
+
 SynthPage::SynthPage (AcidAudioProcessor& p)
     : PageBase (p),
-      octaveA (*p.apvts.getParameter (ParamIDs::oscAOctave), "OSC A OCTAVE"),
+      octaveA (*p.apvts.getParameter (ParamIDs::oscAOctave), "OSC 1 OCTAVE"),
       filterModeButtons (*p.apvts.getParameter (ParamIDs::filterMode), filterModeNames(), {}),
+      layerRow (p),
       page303 (p),
+      amp303 (p, ParamIDs::b3AmpAttack, ParamIDs::b3AmpDecay, ParamIDs::b3AmpRelease, ParamIDs::b3AmpSync),
+      fx (p),
       sequencer (p)
 {
     using namespace ParamIDs;
 
-    // OSC
+    // Osc 1
     waveButton.onClick = [this] { processor.setParameterValue (ParamIDs::wave, value (ParamIDs::wave) > 0.5f ? 0.0f : 1.0f); };
     setHelp (waveButton, "WAVE  -  " + helpForParameter (wave) + " Click to switch.");
     addAndMakeVisible (waveButton);
     addAndMakeVisible (waveDisplay);
     setHelp (waveDisplay, "WAVE  -  the oscillator waveform, drawn from the DSP");
+    addAndMakeVisible (octaveA);
     attach (retroButton, retro);
     attach (lockButton, oscALock);
 
-    // FILTER
+    // Filter
     attach (cutoffKnob, cutoff);
     attach (resoKnob, resonance);
     attach (cutoffLowKnob, cutoffLow);
@@ -31,125 +42,97 @@ SynthPage::SynthPage (AcidAudioProcessor& p)
     attach (transistorButton, transistor);
     addAndMakeVisible (filterModeButtons);
     setHelp (filterModeButtons, "FILTER TYPE  -  " + helpForParameter (filterMode));
-    addAndMakeVisible (cutoffLcd);
-    addAndMakeVisible (resoLcd);
-    attach (velLinkButton, filterVelLink);
-    attach (velAmountKnob, filterVelAmount);
-    addAndMakeVisible (velocityLcd);
-    setHelp (velocityLcd, "VELOCITY  -  the velocity Vel Link is following: the step's Velocity lane, or the key you played");
 
-    // ENVELOPE
+    // Envelope
     attach (envModKnob, envMod);
     attach (decayKnob, decay);
     attach (accentKnob, accent);
     attach (envAttackKnob, envAttack);
     attach (accDecayKnob, accDecay);
     attach (accSweepKnob, accSweep);
-    addAndMakeVisible (envMeter);
-    setHelp (envMeter, "ENV / ACC  -  the filter envelope and the accent-sweep charge, live");
 
-    addAndMakeVisible (octaveA);
-    addChildComponent (page303);
-    addAndMakeVisible (sequencer);
-
-    // everything of the Acid sections (hidden while the 303 is shown)
     for (auto* c : getChildren())
-        if (c != &page303 && c != &sequencer)
-            acidControls.push_back (c);
+        acidControls.push_back (c);
+
+    addChildComponent (layerRow);
+    addChildComponent (page303);
+    addChildComponent (amp303);
+    addChildComponent (fx);
+    addAndMakeVisible (sequencer);
 }
 
 void SynthPage::paint (Graphics& g)
 {
-    if (shownEngine == 1)
-        return;     // the 303 section draws itself
-    AcidLookAndFeel::drawPanel (g, { 8.0f, 0.0f, 150.0f, 206.0f }, "Osc");
-    AcidLookAndFeel::drawPanel (g, { 164.0f, 0.0f, 500.0f, 206.0f }, "Filter");
-    AcidLookAndFeel::drawPanel (g, { 670.0f, 0.0f, 322.0f, 206.0f }, "Envelope");
-
-    // the Velocity column of the Filter
-    g.setColour (Theme::get().bevelDark);
-    g.drawVerticalLine (582, 24.0f, 198.0f);
-    g.setColour (Colours::white.withAlpha (0.07f));
-    g.drawVerticalLine (583, 24.0f, 198.0f);
-    AcidLookAndFeel::drawSmallLabel (g, "Velocity", { 588.0f, 24.0f, 70.0f, 12.0f });
-    AcidLookAndFeel::drawSmallLabel (g, "Wave", { 20.0f, 22.0f, 126.0f, 12.0f }, Justification::centredLeft);
+    if (view != 0)
+        return;     // B and FX draw themselves
+    AcidLookAndFeel::drawPanel (g, { (float) kOscX, 0.0f, (float) kOscW, (float) kRowH }, "Osc 1");
+    AcidLookAndFeel::drawPanel (g, { (float) kFiltX, 0.0f, (float) kFiltW, (float) kRowH }, "Filter");
+    AcidLookAndFeel::drawPanel (g, { (float) kEnvX, 0.0f, (float) kEnvW, (float) kRowH }, "Envelope");
 }
 
 void SynthPage::resized()
 {
-    // OSC
-    waveButton.setBounds (20, 36, 126, 22);
-    waveDisplay.setBounds (20, 62, 126, 58);
-    octaveA.setBounds (20, 124, 126, 22);
-    retroButton.setBounds (20, 150, 126, 22);
-    lockButton.setBounds (20, 176, 126, 22);
-    page303.setBounds (0, 0, getWidth(), 206);
+    auto knobs = [] (int x, std::initializer_list<AcidKnob*> list, int w = kKnobW)
+    {
+        for (auto* k : list)
+        {
+            k->setBounds (x, kKnobY, w, kKnobH);
+            x += w + 2;
+        }
+        return x;
+    };
 
-    // FILTER
-    cutoffKnob.setBounds (178, 24, 116, 116);
-    resoKnob.setBounds (304, 24, 116, 116);
-    cutoffLcd.setBounds (178, 148, 116, 22);
-    resoLcd.setBounds (304, 148, 116, 22);
-    cutoffLowKnob.setBounds (430, 22, 72, 76);
-    driveKnob.setBounds (504, 22, 72, 76);
-    bassKnob.setBounds (430, 100, 72, 76);
-    trebleKnob.setBounds (504, 100, 72, 76);
-    filterModeButtons.setBounds (178, 176, 116, 22);      // beside the cutoff
-    transistorButton.setBounds (304, 176, 116, 22);
-    velLinkButton.setBounds (590, 40, 66, 22);
-    velAmountKnob.setBounds (586, 68, 74, 80);
-    velocityLcd.setBounds (588, 152, 70, 22);
+    // Osc 1: Wave / Octave / Retro on the left, the wave display over Phase Lock on the right
+    waveButton.setBounds (kOscX + 8, 28, 84, 22);
+    octaveA.setBounds (kOscX + 8, 56, 84, 22);
+    retroButton.setBounds (kOscX + 8, 84, 84, 22);   // (the stepper shows just the number at this width)
+    waveDisplay.setBounds (kOscX + 98, 28, 90, 50);
+    lockButton.setBounds (kOscX + 98, 84, 90, 22);
 
-    // ENVELOPE: Env Mod, Decay, Accent / Env Attack, Acc Decay, Acc Sweep, with the live meter
-    const int ex = 676, step = 80;
-    envModKnob.setBounds (ex, 22, 78, 84);
-    decayKnob.setBounds (ex + step, 22, 78, 84);
-    accentKnob.setBounds (ex + step * 2, 22, 78, 84);
-    envAttackKnob.setBounds (ex, 112, 78, 84);
-    accDecayKnob.setBounds (ex + step, 112, 78, 84);
-    accSweepKnob.setBounds (ex + step * 2, 112, 78, 84);
-    envMeter.setBounds (ex + step * 3 + 2, 70, 70, 70);
+    // Filter: Cutoff and Resonance (a little bigger), four small knobs, then the type and Transistor
+    int x = knobs (kFiltX + 6, { &cutoffKnob, &resoKnob }, 64);
+    x = knobs (x + 2, { &cutoffLowKnob, &driveKnob, &bassKnob, &trebleKnob }, 50);
+    filterModeButtons.setBounds (x + 4, 34, kFiltX + kFiltW - x - 12, 22);
+    transistorButton.setBounds (x + 4, 66, kFiltX + kFiltW - x - 12, 22);
 
-    sequencer.setBounds (0, 212, getWidth(), getHeight() - 212);
+    // Envelope: six knobs in a row
+    knobs (kEnvX + 6, { &envModKnob, &decayKnob, &accentKnob, &envAttackKnob, &accDecayKnob, &accSweepKnob }, 54);
+
+    // row 2 and the other sections
+    layerRow.setBounds (0, kRow2Y, getWidth(), LayerRow::kHeight);
+    page303.setBounds (0, 0, getWidth(), kSectionH);
+    amp303.setBounds (8, kRow2Y, 300, LayerRow::kHeight);
+    fx.setBounds (0, 0, getWidth(), kSectionH);
+
+    sequencer.setBounds (0, kSectionH + 6, getWidth(), getHeight() - kSectionH - 6);
+}
+
+void SynthPage::setView (int v)
+{
+    view = jlimit (0, 2, v);
+    update();
 }
 
 void SynthPage::update()
 {
-    const int engine = roundToInt (value (ParamIDs::engine));
-    if (engine != shownEngine)
+    if (view != shownView)
     {
-        shownEngine = engine;
-        page303.setVisible (engine == 1);
+        shownView = view;
         for (auto* c : acidControls)
-            c->setVisible (engine == 0);
+            c->setVisible (view == 0);
+        layerRow.setVisible (view == 0);
+        page303.setVisible (view == 1);
+        amp303.setVisible (view == 1);
+        fx.setVisible (view == 2);
         repaint();
     }
-
-    auto& gui = processor.gui;
+    if (view == 0)      layerRow.update();
+    else if (view == 1) amp303.update();
+    else                fx.update();
 
     const bool square = value (ParamIDs::wave) > 0.5f;
     waveButton.setButtonText (square ? "SQUARE" : "SAW");
     waveDisplay.setMorph (square ? 1.0f : 0.0f);
-    cutoffLcd.setContent ("CUTOFF", formatHz (cutoffToHz (value (ParamIDs::cutoff))));
-    resoLcd.setContent ("RESONANCE", formatNumber (value (ParamIDs::resonance)));
-    envMeter.setLevels (gui.filterEnv.load(), jlimit (0.0f, 1.0f, gui.accentCharge.load()));
-
-    const bool velLink = value (ParamIDs::filterVelLink) > 0.5f;
-    velAmountKnob.setEnabled (velLink);
-    velAmountKnob.setAlpha (velLink ? 1.0f : 0.4f);
-    velocityLcd.setContent ("VEL", velLink ? String (gui.lastVelocity.load()) : String ("off"));
-
-    // modulation arcs where an LFO targets a knob
-    float cutoffMod = 0.0f, resoMod = 0.0f;
-    for (int i = 0; i < 2; ++i)
-    {
-        const float depth = value (ParamIDs::lfo (i, "Depth")) / 100.0f;
-        const int dest = roundToInt (value (ParamIDs::lfo (i, "Dest")));
-        if (dest == DestCutoff) cutoffMod += std::abs (depth) * 0.4f;   // 4 of the 10 octaves
-        if (dest == DestReso)   resoMod += std::abs (depth);
-    }
-    cutoffKnob.setModDepth (jmin (1.0f, cutoffMod));
-    resoKnob.setModDepth (jmin (1.0f, resoMod));
 
     sequencer.update();
 }

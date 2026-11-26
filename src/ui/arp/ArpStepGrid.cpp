@@ -582,7 +582,7 @@ String ArpStepGrid::getHoverHelp() const
     switch (hoverLane)
     {
         case Lane::Volume:    return step + "VOLUME " + String (s.volume) + "  -  drag to draw, bottom = rest, right-click toggles a rest, double-click = full";
-        case Lane::Velocity:  return step + "VELOCITY " + String (s.velocity) + "  -  drag to draw (Step velocity modes and MIDI Out), double-click = 100";
+        case Lane::Velocity:  return step + "VELOCITY " + String (s.velocity) + "  -  drag to draw (each step's loudness, Vel Link and MIDI Out), double-click = 100";
         case Lane::Transpose: return step + "TRANSPOSE " + (s.transpose > 0 ? "+" : "") + String (s.transpose)
                                      + (pattern.scaleSteps ? " scale steps" : " st") + "  -  drag up/down or scroll, double-click = 0";
         case Lane::Ratchet:   return step + "RATCHET x" + String (s.ratchet) + "  -  click to cycle 1-4 hits, shift-click back, scroll";

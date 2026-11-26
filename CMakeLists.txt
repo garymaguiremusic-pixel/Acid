@@ -116,7 +116,8 @@ if(ACID_BUILD_PLUGIN)
         src/ui/BandGraph.cpp
         src/ui/TubeView.cpp
         src/ui/pages/SynthPage.cpp
-        src/ui/pages/LayersPage.cpp
+        src/ui/pages/LayerRow.cpp
+        src/ui/pages/AmpEnvPanel.cpp
         src/ui/pages/TubePage.cpp)
 
     target_compile_definitions(${ACID_TARGET} PUBLIC

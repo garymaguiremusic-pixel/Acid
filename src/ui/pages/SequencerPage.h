@@ -33,7 +33,7 @@ private:
              velHiKnob { AcidKnob::Size::Small, "Vel Hi" }, glideKnob { AcidKnob::Size::Small, "Glide" };
     juce::TextButton lockPitchButton { "Pitch" }, lockVelButton { "Vel" }, lockRestButton { "Rests" },
                      lockRatchetButton { "Ratch" }, lockAccentButton { "Acc" }, lockGlideButton { "Glide" };
-    juce::TextButton scaleLockButton { "Scale Lock" }, fileNotesButton { "File Notes" };
+    juce::TextButton scaleLockButton { "Scale Lock" };
     juce::ComboBox keyBox, scaleBox;
     DragMidiHandle dragMidi;
     juce::ComboBox exportBarsBox, exportRootBox, exportChordBox;

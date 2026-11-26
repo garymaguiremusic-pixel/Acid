@@ -7,7 +7,6 @@
 #include "ui/Widgets.h"
 #include "ui/pages/SynthPage.h"
 #include "ui/pages/SequencerPage.h"
-#include "ui/pages/LayersPage.h"
 #include "ui/pages/TubePage.h"
 
 //==============================================================================
@@ -48,16 +47,14 @@ private:
     juce::TextButton saveButton { "SAVE" }, clearButton { "CLEAR" };
     juce::TextButton presetPrev { juce::CharPointer_UTF8 ("\xe2\x97\x80") }, presetNext { juce::CharPointer_UTF8 ("\xe2\x96\xb6") };
     HelpDisplay display;
-    juce::TextButton echoButton { "Echo" }, tubeButton { "Dist" }, themeButton { "DARK" };
+    juce::TextButton echoButton { "Delay" }, tubeButton { "Dist" }, themeButton { "DARK" };
     juce::TextButton randomPatchButton { "RANDOM" }, undoPatchButton { "UNDO" };
     AcidKnob tuneKnob { AcidKnob::Size::Small, "Tune" }, volumeKnob { AcidKnob::Size::Small, "Volume" };
 
     // pages
+    // A (Acid) / B (303) / C (Layer) choose the OSC section on top of the sequencer; Distortion is its own page
     std::array<juce::TextButton, 3> tabs;
-    std::unique_ptr<SegmentedButtons> engineButtons;    // ACID | 303, beside the tabs
-    SynthPage synthPage;          // synth + sequencer
-    LayersPage layersPage;
-    TubePage tubePage;
+    SynthPage synthPage;          // the OSC section + the sequencer
     int currentPage = 0;
 
     HelpButton helpButton;

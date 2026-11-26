@@ -224,7 +224,7 @@ as::arp::RandomiseSettings AcidAudioProcessor::readRandomiseSettings() const
     r.lockAccents        = value (rndLockAccent) > 0.5f;
     r.glideProbability   = value (rndGlide) * 0.01f;
     r.lockGlides         = value (rndLockGlide) > 0.5f;
-    r.fileNotes          = value (rndFileNotes) > 0.5f;
+    r.fileNotes          = false;     // (the File Notes button was removed)
     r.scaleLock          = value (ParamIDs::scaleLock) > 0.5f;
     r.scaleKey           = roundToInt (value (ParamIDs::scaleKey));
     r.scaleIndex         = roundToInt (value (ParamIDs::scale));
