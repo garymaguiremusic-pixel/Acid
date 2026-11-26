@@ -29,11 +29,11 @@ VoiceSettings Voice303::mapSettings (const Settings303& s)
     v.accSweep = clampf (0.25f + 0.55f * s.resonance + (s.weakAccentCap ? 0.3f : 0.0f), 0.0f, 1.0f);
     v.drive = 0.0f;
 
-    // VCA: quick attack, slow decay while the gate is held, a fast close
-    v.ampAttackMs = s.accurateGate ? 1.5f : 0.5f;
-    v.ampDecayMs = 3200.0f;
-    v.ampHold = s.infSustain;
-    v.ampReleaseMs = s.accurateGate ? 16.0f : 8.0f;
+    // VCA: B's own amp envelope (Accurate Gate softens its edges a little, like the hardware)
+    v.ampAttackMs = std::max (0.5f, s.ampAttackMs) + (s.accurateGate ? 1.0f : 0.0f);
+    v.ampDecayMs = s.ampDecayMs;
+    v.ampHold = s.ampHold || s.infSustain;
+    v.ampReleaseMs = std::max (8.0f, s.ampReleaseMs) * (s.accurateGate ? 2.0f : 1.0f);
 
     v.slideMs = s.slideMs * (s.slowSlide ? 2.0f : 1.0f);
     v.oscALock = s.phaseReset;

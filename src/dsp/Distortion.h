@@ -8,6 +8,8 @@ struct DistortionSettings
 {
     bool  on = false;
     int   mode = 0;          // 0 Saturate, 1 Foldback, 2 Overdrive, 3 Fuzz, 4 Scream, 5 Rectify
+    int   modes = -1;        // the modes that are on, one bit each (any number); -1 = just 'mode'.
+                             // Several run one after another, in that order. 0 = none (clean).
     float drive = 0.5f;      // 0..1
     float distort = 0.7f;    // 0..1, dry / wet
 };
@@ -45,6 +47,7 @@ public:
 
 private:
     static float curve (float x, int mode) noexcept;
+    int activeModes() const noexcept { return set.modes < 0 ? (1 << std::clamp (set.mode, 0, 5)) : (set.modes & 63); }
 
     double sr = 44100.0;
     DistortionSettings set;

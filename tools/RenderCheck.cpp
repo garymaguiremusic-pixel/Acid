@@ -78,15 +78,18 @@ int main (int argc, char** argv)
                                { "303_sync", 0, 0, 0, 100, 1, 1, 0, 0, 7 },
                                { "303_fm_a_to_b", 0, 0, 0, 100, 1, 0, 40, 0, 0 },
                                { "303_fm_b_to_a", 0, 0, 0, 0, 1, 0, 40, 1, 12 } };
+        // (sync, FM and the layer are section A's now: the last three cases render on A)
         processor->setParameterValue ("engine", 1.0f);
         for (const auto& k : cases)
         {
             processor->setParameterValue ("distOn", k.distOn);
-            processor->setParameterValue ("distMode", k.mode);
+            for (int m = 0; m < 6; ++m)
+                processor->setParameterValue (acid::ParamIDs::distModeIds[m], m == (int) k.mode ? 1.0f : 0.0f);
             processor->setParameterValue ("distDrive", k.drive);
             processor->setParameterValue ("distAmount", 100.0f);
             processor->setParameterValue ("oscBLevel", k.oscB);
             processor->setParameterValue ("unisonVoices", k.unison);
+            processor->setParameterValue ("engine", (k.oscB > 0 || k.sync > 0 || k.fm > 0) ? 0.0f : 1.0f);   // layer, sync and FM are A's
             processor->setParameterValue ("oscSync", k.sync);
             processor->setParameterValue ("fmAmount", k.fm);
             processor->setParameterValue ("fmDirection", k.fmDir);

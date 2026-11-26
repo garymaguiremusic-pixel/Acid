@@ -109,11 +109,15 @@ void Distortion::process (float* left, float* right, int numSamples) noexcept
 {
     float* io[2] = { left, right };
     const int latency = getLatencySamples();
-    const int mode = set.mode;
+    const int modes = activeModes();
+    int first = 0;
+    while (first < 6 && (modes & (1 << first)) == 0) ++first;
+    const bool scream = (modes & (1 << 4)) != 0;
     for (int i = 0; i < numSamples; ++i)
     {
         const float fade = onFade.next(), drive = driveSm.next(), mix = mixSm.next();
-        const float gain = driveGain (mode, drive);
+        const float gain = first < 6 ? driveGain (first, drive) : 1.0f;
+        const float between = 1.5f + 2.5f * drive;           // into each further mode
         const int readPos = (dryPos - latency + 32) & 31;
 
         for (int c = 0; c < 2; ++c)
@@ -125,16 +129,27 @@ void Distortion::process (float* left, float* right, int numSamples) noexcept
             // input voicing, then the gain into the curve
             float pre = lowTrim[c].process (x);
             pre += 1.2f * midPush[c].process (pre);
-            if (mode == 4)
+            if (scream)
                 pre += 4.0f * screamPeak[c].process (pre);
             pre *= gain;
 
             float a, b;
             up[c].upsample (pre, a, b);
-            a = curve (a, mode);
-            b = curve (b, mode);
+            // the modes that are on, one after another (none on: clean)
+            bool firstStage = true;
+            for (int m = 0; m < 6; ++m)
+            {
+                if ((modes & (1 << m)) == 0)
+                    continue;
+                if (! firstStage) { a *= between; b *= between; }
+                a = curve (a, m);
+                b = curve (b, m);
+                firstStage = false;
+            }
             float wet = down[c].downsample (a, b);
             wet = dc[c].process (post2[c].process (post1[c].process (wet)));
+            if (first >= 6)
+                wet = dry;                                     // no mode on: clean
 
             const float processed = dry + (wet - dry) * mix;
             io[c][i] = dry + (processed - dry) * fade;

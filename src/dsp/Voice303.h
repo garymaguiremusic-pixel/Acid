@@ -42,6 +42,12 @@ struct Settings303
     bool  fmBtoA          = false;
 
     bool  velLink         = false;   // Velocity: the step velocity opens / closes the filter
+
+    // B's own amp envelope (the defaults are the hardware's: fast attack, slow decay, short release)
+    float ampAttackMs     = 1.0f;
+    float ampDecayMs      = 3200.0f;
+    bool  ampHold         = false;
+    float ampReleaseMs    = 10.0f;
 };
 
 /** A 303-style voice, built on Acid's diode-ladder voice with the hardware's behaviour:

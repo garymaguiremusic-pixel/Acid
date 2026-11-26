@@ -220,15 +220,15 @@ void HelpOverlay::paint (Graphics& g)
 
     const char* lines[] =
     {
-        "SYNTH:  oscillator (Saw / Square, Retro), diode or transistor ladder filter, envelope with Accent and Acc Sweep.",
+        "A:  the Acid synth - Osc 1, Filter, Envelope; Osc 2, Hard Sync / FM, Unison, Velocity and its Amp Envelope.",
         "ARPEGGIATOR:  Step mode plays the step sequence whenever the host plays (from the Key's root); keys you hold take over.",
         "    Arp off = the keys play the synth directly (overlapping notes slide). The Velocity lane sets each step's loudness.",
         "STEP SEQUENCER:  Volume (bottom = rest), Velocity, Transpose, Ratchet, Accent and Glide lanes. A Glide to a new pitch",
         "    glides over the GLIDE time. Length 16 / 32, End, Undo / Redo, Clear, Import (MIDI or audio) or drop a file on the grid.",
         "RANDOMISE:  Density, Range, Glide, Ratch, Acc, Vel Lo / Hi, with locks. Scale Lock keeps every step in the Key and Scale.",
-        "ACID | 303:  switch the synth (top of Synth / Seq). The sequencer plays the one you choose. 303 Options: VCO model and more.",
-        "LAYERS:  Osc B, Hard Sync and FM, unison, amp envelope (tempo Sync), echo and two LFOs. They apply to Acid and 303.",
-        "DISTORTION:  six modes, any number on at once (Drive, Distort), and the three-band tube, each with its own ON. Dist = the whole page.",
+        "B:  the 303, its own Amp Envelope and its options. A or B also chooses the synth that plays.",
+        "FX:  Distortion (any number of the six modes), Delay and the Tube. The sequencer stays underneath A, B and FX.",
+        "Amp Envelope Sync: note values from 1/64 to 1/1. Header: Delay and Dist switch those on / off.",
         "Knobs move in whole steps (drag or mouse wheel, one notch = 1). Double-click = zero. Drag the corner to resize.",
         "",
         "Click anywhere to close."

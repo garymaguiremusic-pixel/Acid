@@ -441,3 +441,32 @@ TEST_CASE ("Hard sync and FM change the sound and stay bounded", "[dsp][sync][fm
             REQUIRE (std::abs (v) < 4.0f);
         }
 }
+
+TEST_CASE ("Distortion: any number of modes at once stay bounded; none on is clean", "[dsp][distortion]")
+{
+    FastRandom rng (9);
+    for (int modes : { 0, 1, 3, 21, 63 })
+    {
+        Distortion d;
+        DistortionSettings s;
+        s.on = true; s.modes = modes; s.drive = 1.0f; s.distort = 1.0f;
+        d.setSettings (s);
+        d.prepare (48000.0);
+        std::vector<float> l (512), r (512), in (512);
+        float diff = 0.0f;
+        for (int b = 0; b < 20; ++b)
+        {
+            for (size_t i = 0; i < l.size(); ++i) { in[i] = 0.5f * rng.nextBipolar(); l[i] = r[i] = in[i]; }
+            d.process (l.data(), r.data(), (int) l.size());
+            for (size_t i = 0; i < l.size(); ++i)
+            {
+                REQUIRE (std::isfinite (l[i]));
+                REQUIRE (std::abs (l[i]) < 2.0f);
+                if (i >= (size_t) Distortion::getLatencySamples())
+                    diff = std::max (diff, std::abs (l[i] - in[i - (size_t) Distortion::getLatencySamples()]));
+            }
+        }
+        if (modes == 0) REQUIRE (diff < 1.0e-4f);     // clean: the input, delayed
+        else            REQUIRE (diff > 0.05f);
+    }
+}

@@ -167,11 +167,20 @@ void Voice::render (float* left, float* right, int numSamples, const VoiceMod& m
         const float pitch = currentNote + set.tuneSemis + (mod.pitchSemis ? mod.pitchSemis[m] : 0.0f)
                           + (retroDrift + noteDrift) * 0.01f;
         const float baseHz = midiToHz (pitch);
+        // hard sync: each Osc 1 voice runs Sync semitones above a hidden master at the note's
+        // pitch and restarts with it - turning Sync sweeps the classic tearing sync sound
+        const float syncRatio = set.oscSync ? std::exp2 (clampf (set.syncSemis, 0.0f, 48.0f) / 12.0f) : 1.0f;
         for (int i = 0; i < activeVoices; ++i)
-            unison[i].setFrequency (baseHz * std::exp2 (unisonDetune[i] / 1200.0f));
+        {
+            const float hz = baseHz * std::exp2 (unisonDetune[i] / 1200.0f);
+            unison[i].setFrequency (hz * syncRatio);
+            syncInc[i] = std::min (0.45, (double) hz / osr);
+        }
         const float fm = set.fmAmount * set.fmAmount * kFmDepth;
         const bool fmA = fm > 0.0f && ! set.fmBtoA, fmB = fm > 0.0f && set.fmBtoA;
-        const bool runB = set.oscBLevel > 0.0f || fmB;
+        const bool runB = set.oscBLevel > 0.0f || fm > 0.0f;
+        // FM 1 > 2 brings the modulated Osc 2 in by itself as FM rises
+        const float oscBHeard = fmA ? std::max (set.oscBLevel, set.fmAmount) : set.oscBLevel;
         if (runB)
             oscB.setFrequency (baseHz * std::exp2 ((set.oscBTuneSemis + set.oscBDetuneCents * 0.01f) / 12.0f));
 
@@ -220,6 +229,15 @@ void Voice::render (float* left, float* right, int numSamples, const VoiceMod& m
             float aFirst = 0.0f;
             for (int i = 0; i < activeVoices; ++i)
             {
+                if (set.oscSync)
+                {
+                    syncPhase[i] += syncInc[i];
+                    if (syncPhase[i] >= 1.0)
+                    {
+                        syncPhase[i] -= 1.0;
+                        unison[i].syncReset (syncInc[i] > 0.0 ? syncPhase[i] / syncInc[i] : 0.0);
+                    }
+                }
                 const float s = fmB ? unison[i].process (morph, fm * bRaw) : unison[i].process (morph);
                 if (i == 0) aFirst = s;
                 l += s * unisonGainL[i];
@@ -227,20 +245,11 @@ void Voice::render (float* left, float* right, int numSamples, const VoiceMod& m
             }
 
             if (! fmB && runB)
-            {
-                // hard sync: Osc B restarts whenever Osc A starts a new cycle
-                if (set.oscSync && unison[0].justWrapped())
-                    oscB.syncReset (unison[0].wrapFraction());
                 bRaw = fmA ? oscB.process (morph, fm * aFirst) : oscB.process (morph);
-            }
-            else if (fmB && set.oscSync && unison[0].justWrapped())
-            {
-                oscB.syncReset (unison[0].wrapFraction());
-            }
 
-            if (set.oscBLevel > 0.0f)
+            if (oscBHeard > 0.0f)
             {
-                const float b = bRaw * set.oscBLevel;
+                const float b = bRaw * oscBHeard;
                 l += b;
                 r += b;
             }

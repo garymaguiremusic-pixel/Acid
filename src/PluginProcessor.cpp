@@ -41,6 +41,9 @@ AcidAudioProcessor::AcidAudioProcessor()
     P.b3SlowSlide = get (b3SlowSlide); P.b3WeakAccentCap = get (b3WeakAccentCap); P.b3InfSustain = get (b3InfSustain);
     P.b3SoftAccent = get (b3SoftAccent); P.b3VelLink = get (b3VelLink);
     P.oscSync = get (oscSync); P.fmAmount = get (fmAmount); P.fmDirection = get (fmDirection);
+    P.oscSyncPitch = get (oscSyncPitch); P.ampSync = get (ampSync); P.tubeDrive = get (tubeDrive);
+    P.b3AmpAttack = get (b3AmpAttack); P.b3AmpDecay = get (b3AmpDecay); P.b3AmpRelease = get (b3AmpRelease); P.b3AmpSync = get (b3AmpSync);
+    for (int i = 0; i < 6; ++i) P.distModes[i] = get (distModeIds[i]);
     P.distPageOn = get (distPageOn); P.distOn = get (distOn); P.distMode = get (distMode);
     P.distDrive = get (distDrive); P.distAmount = get (distAmount);            P.treble = get (treble);
     P.drive = get (drive);           P.envMod = get (envMod);        P.decay = get (decay);
@@ -468,10 +471,22 @@ void AcidAudioProcessor::updateSettings() noexcept
     v.unisonVoices    = roundToInt (P.unisonVoices->load());
     v.unisonSpread    = norm100 (P.unisonSpread->load());
     v.unisonFree      = P.unisonFree->load() > 0.5f;
-    v.ampAttackMs     = ampAttackToMs (P.ampAttack->load());
-    v.ampHold         = ampDecayHolds (P.ampDecay->load());
-    v.ampDecayMs      = ampDecayToMs (P.ampDecay->load());
-    v.ampReleaseMs    = ampReleaseToMs (P.ampRelease->load());
+    // amp envelopes: milliseconds, or note values from 1/64 to 1/1 with Sync
+    struct AmpTimes { float attack, decay, release; bool hold; };
+    auto ampTimes = [this] (float a, float d, float r, bool synced) -> AmpTimes
+    {
+        if (! synced)
+            return { ampAttackToMs (a), ampDecayToMs (d), ampReleaseToMs (r), ampDecayHolds (d) };
+        const auto& divs = ampDivisions();
+        auto ms = [this, &divs] (float v) { return (float) (divs[(size_t) divisionIndex (v, (int) divs.size())].beats * 60000.0 / jmax (20.0, bpm)); };
+        return { jmax (1.0f, ms (a)), ms (d), jmax (10.0f, ms (r)), ampDecayHolds (d) };
+    };
+    const auto ampA = ampTimes (P.ampAttack->load(), P.ampDecay->load(), P.ampRelease->load(), P.ampSync->load() > 0.5f);
+    v.ampAttackMs     = ampA.attack;
+    v.ampHold         = ampA.hold;
+    v.ampDecayMs      = ampA.decay;
+    v.ampReleaseMs    = ampA.release;
+    v.syncSemis       = P.oscSyncPitch->load();
     v.slideMs         = P.slideTime->load();
     v.smoothGate      = true;     // the Acid synth: no clicks however low the cutoff
     voice.setSettings (v);
@@ -496,23 +511,22 @@ void AcidAudioProcessor::updateSettings() noexcept
     b.weakAccentCap = P.b3WeakAccentCap->load() > 0.5f;
     b.infSustain    = P.b3InfSustain->load() > 0.5f;
     b.softAccent    = P.b3SoftAccent->load() > 0.5f;
-    b.oscBLevel       = v.oscBLevel;           // the Layers page plays on the 303 too
-    b.oscBTuneSemis   = v.oscBTuneSemis;
-    b.oscBDetuneCents = v.oscBDetuneCents;
-    b.oscBLock        = v.oscBLock;
-    b.unisonVoices    = v.unisonVoices;
-    b.unisonSpread    = v.unisonSpread;
-    b.unisonFree      = v.unisonFree;
-    b.oscSync         = v.oscSync;
-    b.fmAmount        = v.fmAmount;
-    b.fmBtoA          = v.fmBtoA;
     b.velLink         = P.b3VelLink->load() > 0.5f;
+    const auto ampB = ampTimes (P.b3AmpAttack->load(), P.b3AmpDecay->load(), P.b3AmpRelease->load(), P.b3AmpSync->load() > 0.5f);
+    b.ampAttackMs     = ampB.attack;           // B's own amp envelope (Osc 2, Sync / FM and Unison are A's)
+    b.ampDecayMs      = ampB.decay;
+    b.ampHold         = ampB.hold;
+    b.ampReleaseMs    = ampB.release;
     voice303.setSettings (b);
 
     const bool distPage = P.distPageOn->load() > 0.5f;
     DistortionSettings d;
     d.on      = distPage && P.distOn->load() > 0.5f;
     d.mode    = roundToInt (P.distMode->load());
+    d.modes   = 0;
+    for (int i = 0; i < 6; ++i)
+        if (P.distModes[i]->load() > 0.5f)
+            d.modes |= 1 << i;
     d.drive   = norm100 (P.distDrive->load());
     d.distort = norm100 (P.distAmount->load());
     distortion.setSettings (d);
@@ -520,12 +534,13 @@ void AcidAudioProcessor::updateSettings() noexcept
     tone.setGains (P.bass->load(), P.treble->load());
 
     TubeSettings t;
-    for (int i = 0; i < 4; ++i) t.edges[i] = P.tubeEdges[i]->load();
+    // one band: the whole range, the inner splits fixed (every band gets the same Drive, flat)
+    t.edges[0] = 20.0f; t.edges[1] = 300.0f; t.edges[2] = 3000.0f; t.edges[3] = 20000.0f;
     for (int b = 0; b < 3; ++b)
     {
-        t.drive[b] = norm100 (P.bandDrive[b]->load());
-        t.bandGainDb[b] = P.bandGain[b]->load();
-        t.solo[b] = P.bandSolo[b]->load() > 0.5f;
+        t.drive[b] = norm100 (P.tubeDrive->load());    // one band: the same Drive everywhere, flat
+        t.bandGainDb[b] = 0.0f;
+        t.solo[b] = false;
     }
     t.resonator = norm100 (P.tubeResonator->load());
     t.character = norm100 (P.tubeCharacter->load());
@@ -560,7 +575,7 @@ void AcidAudioProcessor::updateSettings() noexcept
         lfos[i].setPhaseOffset (P.lfoPhase[i]->load());
         lfos[i].setMirror (P.lfoMirror[i]->load() > 0.5f);
         lfos[i].setRetrig (roundToInt (P.lfoRetrig[i]->load()));
-        lfoDepthNow[i] = P.lfoDepth[i]->load() / 100.0f;
+        lfoDepthNow[i] = 0.0f;      // the LFOs were removed
         lfoDestNow[i] = roundToInt (P.lfoDest[i]->load());
     }
 
@@ -949,10 +964,7 @@ float AcidAudioProcessor::getParameterValue (const String& id) const
 StringArray AcidAudioProcessor::tubeParameterIds()
 {
     using namespace ParamIDs;
-    StringArray ids { tubeEdgeLow, tubeXover1, tubeXover2, tubeEdgeHigh, tubeResonator, tubeCharacter, tubeInput, tubeOutput, tubeMix };
-    for (int b = 0; b < 3; ++b)
-        ids.addArray ({ band (b, "Drive"), band (b, "Gain") });
-    return ids;
+    return { tubeResonator, tubeCharacter, tubeInput, tubeOutput, tubeMix, tubeDrive };
 }
 
 std::vector<float> AcidAudioProcessor::captureTube() const
@@ -989,22 +1001,8 @@ void AcidAudioProcessor::randomiseTubeSettings()
     auto range = [&r] (float lo, float hi) { return lo + (hi - lo) * r.nextFloat(); };
     auto weighted = [&r] (float lo, float hi, float bias) { return lo + (hi - lo) * std::pow (r.nextFloat(), bias); };
 
-    // crossovers at least an octave apart, in musical ranges
-    const float lowEdge = range (30.0f, 120.0f);
-    const float x1 = jmax (lowEdge * 2.0f, range (250.0f, 900.0f));
-    const float x2 = jmax (x1 * 2.0f, range (1400.0f, 4000.0f));
-    const float highEdge = jmax (x2 * 2.0f, range (7000.0f, 16000.0f));
-
     using namespace ParamIDs;
-    setParameterValue (tubeEdgeLow, std::round (lowEdge));
-    setParameterValue (tubeXover1, std::round (x1));
-    setParameterValue (tubeXover2, std::round (x2));
-    setParameterValue (tubeEdgeHigh, std::round (highEdge));
-    for (int b = 0; b < 3; ++b)
-    {
-        setParameterValue (band (b, "Drive"), std::round (weighted (10.0f, 90.0f, 1.3f)));
-        setParameterValue (band (b, "Gain"), std::round (range (-6.0f, 6.0f)));
-    }
+    setParameterValue (tubeDrive, std::round (weighted (10.0f, 90.0f, 1.3f)));
     setParameterValue (tubeResonator, std::round (weighted (0.0f, 70.0f, 1.8f)));
     setParameterValue (tubeCharacter, std::round (range (0.0f, 80.0f)));
     setParameterValue (tubeMix, std::round (range (60.0f, 100.0f)));
@@ -1134,7 +1132,12 @@ void AcidAudioProcessor::randomisePatch()
     set (b3Accent, range (40.0f, 95.0f));
 
     // the distortion (its on / off switch stays as it is): any of the six modes
-    set (distMode, (float) r.nextInt (distModeNames().size()));
+    // one distortion mode, now and then a second one stacked on it
+    {
+        const int first = r.nextInt (6), second = chance (0.3f) ? r.nextInt (6) : first;
+        for (int i = 0; i < 6; ++i)
+            set (distModeIds[i], (i == first || i == second) ? 1.0f : 0.0f);
+    }
     set (distDrive, range (15.0f, 75.0f));
     set (distAmount, range (30.0f, 100.0f));
 
@@ -1256,6 +1259,22 @@ void AcidAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
             const float v = child.isValid() ? (float) child.getProperty ("value") : ranged->convertFrom0to1 (ranged->getDefaultValue());
             ranged->setValueNotifyingHost (ranged->convertTo0to1 (v));
         }
+
+    // older sessions: one distortion mode -> that mode's on / off; three tube bands -> one Drive
+    auto stored = [&state] (const String& id) { return state.getChildWithProperty ("id", id); };
+    if (! stored (ParamIDs::distSaturate).isValid() && stored (ParamIDs::distMode).isValid())
+    {
+        const int mode = roundToInt ((float) stored (ParamIDs::distMode).getProperty ("value"));
+        for (int i = 0; i < 6; ++i)
+            setParameterValue (ParamIDs::distModeIds[i], i == mode ? 1.0f : 0.0f);
+    }
+    if (! stored (ParamIDs::tubeDrive).isValid() && stored (ParamIDs::band (0, "Drive")).isValid())
+    {
+        float sum = 0.0f;
+        for (int b = 0; b < 3; ++b)
+            sum += (float) stored (ParamIDs::band (b, "Drive")).getProperty ("value");
+        setParameterValue (ParamIDs::tubeDrive, std::round (sum / 3.0f));
+    }
 
     restoringState = false;
     if (legacyLength > 0)

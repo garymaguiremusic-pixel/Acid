@@ -31,9 +31,10 @@ struct VoiceSettings
     bool  velLink         = false;    // velocity moves the cutoff
     float velAmount       = 0.5f;     // 0..1: how far (up to kVelocityOctaves)
 
-    bool  oscSync         = false;    // hard sync: Osc B restarts with Osc A
+    bool  oscSync         = false;    // hard sync: Osc 1 is locked to the note and swept up by syncSemis
+    float syncSemis       = 12.0f;    // how far Osc 1 sits above the note while synced
     float fmAmount        = 0.0f;     // 0..1
-    bool  fmBtoA          = false;    // false: Osc A modulates Osc B, true: Osc B modulates Osc A
+    bool  fmBtoA          = false;    // false: Osc 1 drives Osc 2 (1 > 2), true: Osc 2 drives Osc 1 (2 > 1)
     float oscBLevel       = 0.0f;     // 0..1
     float oscBTuneSemis   = 0.0f;
     float oscBDetuneCents = 8.0f;
@@ -129,6 +130,7 @@ private:
     float levelTarget = 1.0f, levelSm = 1.0f;
     float velTarget = 1.0f, velSm = 1.0f;
     float vcaSm[2] {};
+    double syncPhase[kMaxUnison] {}, syncInc[kMaxUnison] {};   // hard sync: the hidden masters at the note's pitch
     int activeVoices = 1;
     bool stereo = false;
 };
