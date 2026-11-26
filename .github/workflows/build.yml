@@ -64,7 +64,10 @@ jobs:
             pluginval.log
             build/CMakeFiles/CMakeConfigureLog.yaml
 
+  # macOS builds are switched off (Windows only for now); set this to true to build them again
+  # and add macos back to the publish job's needs and downloads.
   macos:
+    if: false
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -123,19 +126,15 @@ jobs:
             auval.log
             pluginval.log
 
-  # The Windows zip and the macOS installer go to a "builds" branch (fetch with git).
+  # The Windows zip goes to a "builds" branch (fetch with git).
   publish:
-    needs: [windows, macos]
+    needs: [windows]
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
         with:
           name: publish-windows
-          path: out
-      - uses: actions/download-artifact@v4
-        with:
-          name: publish-macos
           path: out
       - name: Push builds branch
         run: |
