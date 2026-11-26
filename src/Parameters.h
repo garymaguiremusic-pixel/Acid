@@ -230,6 +230,10 @@ juce::String formatNumber (double v);
     hover text and the help display. */
 juce::String describeParameter (const juce::String& id, float value);
 
+/** The other way: text a host or the user typed ("500 Hz", "1.2k", "250 ms", "0.5 s") to the
+    parameter's own value. Knobs shown in Hz or ms take the typed Hz or ms (the nearest step). */
+float parseParameter (const juce::String& id, const juce::String& text);
+
 /** One-line explanation of a parameter for the hover help. */
 juce::String helpForParameter (const juce::String& id);
 

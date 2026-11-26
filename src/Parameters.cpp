@@ -54,7 +54,8 @@ String formatMs (float ms)
 {
     if (ms >= 1000.0f) return String (ms / 1000.0f, 2) + " s";
     if (ms < 10.0f)    return String (ms, 2) + " ms";
-    return String (ms, ms < 100.0f ? 1 : 0) + " ms";
+    if (ms < 100.0f) return String (ms, 1) + " ms";
+    return String (roundToInt (ms)) + " ms";
 }
 
 String formatNumber (double v)
@@ -68,6 +69,30 @@ namespace
 {
     bool endsWith (const String& id, const char* s) { return id.endsWith (s); }
     String signedText (float v, const String& unit)  { return (v > 0.0f ? "+" : "") + formatNumber (v) + unit; }
+}
+
+float parseParameter (const String& id, const String& text)
+{
+    using namespace ParamIDs;
+    const auto t = text.trim().toLowerCase();
+    const float number = t.getFloatValue();
+
+    // knobs that show Hz or ms: the typed Hz / ms back to the knob position (exponential map)
+    auto inverse = [] (float x, float lo, float hi) { return jlimit (0.0f, 100.0f, 100.0f * std::log (jmax (lo, x) / lo) / std::log (hi / lo)); };
+    auto hz = [&] { return number * ((t.contains ("k") && ! t.contains ("ms")) ? 1000.0f : 1.0f); };
+    auto ms = [&] { return number * ((t.endsWith ("s") && ! t.endsWith ("ms")) ? 1000.0f : 1.0f); };
+
+    if (id == cutoff || id == cutoffLow)   return inverse (hz(), 20.0f, 20000.0f);
+    if (id == echoLowCut)                  return inverse (hz(), 20.0f, 2000.0f);
+    if (id == echoHighCut)                 return inverse (hz(), 1000.0f, 20000.0f);
+    if (id == decay || id == accDecay)     return inverse (ms(), 30.0f, 3000.0f);
+    if (id == envAttack)                   return inverse (ms(), 0.3f, 30.0f);
+    if (id == ampAttack || id == b3AmpAttack)   return inverse (ms(), 1.0f, 100.0f);
+    if (id == ampRelease || id == b3AmpRelease) return inverse (ms(), 10.0f, 1000.0f);
+    if (id == ampDecay || id == b3AmpDecay)     return t.contains ("hold") ? 100.0f : jmin (99.0f, inverse (ms(), 10.0f, 10000.0f));
+    if (id == echoTime && ! t.contains ("/"))   return inverse (ms(), 10.0f, 2000.0f);
+    if (id == echoFeedback)                return jlimit (0.0f, 100.0f, number / 0.95f);   // shown as % of the full feedback
+    return number;
 }
 
 String describeParameter (const String& id, float v)
@@ -269,7 +294,7 @@ AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     {
         auto attributes = AudioParameterFloatAttributes()
             .withStringFromValueFunction ([id] (float v, int) { return describeParameter (id, v); })
-            .withValueFromStringFunction ([] (const String& s) { return s.getFloatValue(); });
+            .withValueFromStringFunction ([id] (const String& s) { return parseParameter (id, s); });
         layout.add (std::make_unique<AudioParameterFloat> (ParameterID { id, 1 }, name,
                                                             NormalisableRange<float> (lo, hi, 1.0f), def, attributes));
     };
