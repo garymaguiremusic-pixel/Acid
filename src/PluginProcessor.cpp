@@ -39,7 +39,8 @@ AcidAudioProcessor::AcidAudioProcessor()
     P.b3Volume = get (b3Volume); P.b3Model = get (b3Model); P.b3AccurateGate = get (b3AccurateGate);
     P.b3VcaNoise = get (b3VcaNoise); P.b3Vibrato = get (b3Vibrato); P.b3PhaseReset = get (b3PhaseReset);
     P.b3SlowSlide = get (b3SlowSlide); P.b3WeakAccentCap = get (b3WeakAccentCap); P.b3InfSustain = get (b3InfSustain);
-    P.b3SoftAccent = get (b3SoftAccent);
+    P.b3SoftAccent = get (b3SoftAccent); P.b3VelLink = get (b3VelLink);
+    P.oscSync = get (oscSync); P.fmAmount = get (fmAmount); P.fmDirection = get (fmDirection);
     P.distPageOn = get (distPageOn); P.distOn = get (distOn); P.distMode = get (distMode);
     P.distDrive = get (distDrive); P.distAmount = get (distAmount);            P.treble = get (treble);
     P.drive = get (drive);           P.envMod = get (envMod);        P.decay = get (decay);
@@ -456,6 +457,9 @@ void AcidAudioProcessor::updateSettings() noexcept
     v.filterMode      = roundToInt (P.filterMode->load());
     v.oscALock        = P.oscALock->load() > 0.5f;
     v.oscBLock        = P.oscBLock->load() > 0.5f;
+    v.oscSync         = P.oscSync->load() > 0.5f;
+    v.fmAmount        = norm100 (P.fmAmount->load());
+    v.fmBtoA          = roundToInt (P.fmDirection->load()) == 1;
     v.velLink         = P.filterVelLink->load() > 0.5f;
     v.velAmount       = norm100 (P.filterVelAmount->load());
     v.oscBLevel       = norm100 (P.oscBLevel->load());
@@ -498,6 +502,10 @@ void AcidAudioProcessor::updateSettings() noexcept
     b.unisonVoices    = v.unisonVoices;
     b.unisonSpread    = v.unisonSpread;
     b.unisonFree      = v.unisonFree;
+    b.oscSync         = v.oscSync;
+    b.fmAmount        = v.fmAmount;
+    b.fmBtoA          = v.fmBtoA;
+    b.velLink         = P.b3VelLink->load() > 0.5f;
     voice303.setSettings (b);
 
     const bool distPage = P.distPageOn->load() > 0.5f;
@@ -650,10 +658,16 @@ void AcidAudioProcessor::renderVoice (float* left, float* right, int from, int t
     }
 }
 
-void AcidAudioProcessor::playNoteOn (int note, bool accent, bool legato, float level, float filterVelocity, bool glide) noexcept
+void AcidAudioProcessor::playNoteOn (int note, bool accent, bool legato, float level, float filterVelocity, bool glide, float stepVolume) noexcept
 {
     if (activeEngine == 1)
-        voice303.noteOn (note, accent, legato, level, glide);
+    {
+        // 303 Velocity off: the hardware has no velocity, only the step's Volume sets the level
+        if (P.b3VelLink->load() > 0.5f)
+            voice303.noteOn (note, accent, legato, level, glide, filterVelocity);
+        else
+            voice303.noteOn (note, accent, legato, stepVolume, glide, 1.0f);
+    }
     else
         voice.noteOn (note, accent, legato, level, filterVelocity, glide);
 }
@@ -672,12 +686,13 @@ void AcidAudioProcessor::applyArpEvent (const as::arp::NoteEvent& e) noexcept
     // Vel Link follows the step's Velocity lane, whatever the velocity mode (as in ArpSampler)
     const int laneVelocity = jlimit (1, 127, e.stepVelocity);
     const float filterVelocity = (float) laneVelocity / 127.0f;
+    const float stepVolume = (float) jlimit (0, 127, e.volume) / 127.0f;
 
     switch (e.type)
     {
         case Type::Start:
             // mono: the newest note takes the voice (in Chord mode, the top note)
-            playNoteOn (e.note, e.accent, false, level, filterVelocity);
+            playNoteOn (e.note, e.accent, false, level, filterVelocity, true, stepVolume);
             gui.lastVelocity.store (laneVelocity);
             voiceArpId = e.id;
             for (auto& l : lfos) l.noteTriggered();
@@ -687,7 +702,7 @@ void AcidAudioProcessor::applyArpEvent (const as::arp::NoteEvent& e) noexcept
             // a tie: glide to the new pitch over the Glide time, without retriggering
             if (e.id == voiceArpId)
             {
-                playNoteOn (e.note, e.accent, true, level, filterVelocity, e.glide);   // Glide slides, Tie jumps
+                playNoteOn (e.note, e.accent, true, level, filterVelocity, e.glide, stepVolume);   // Glide slides
                 gui.lastVelocity.store (laneVelocity);
             }
             break;
@@ -1081,6 +1096,11 @@ void AcidAudioProcessor::randomisePatch()
     set (ampDecay, chance (0.6f) ? 100.0f : range (55.0f, 95.0f));
     set (ampRelease, range (10.0f, 35.0f));
 
+    // hard sync and FM: now and then, in moderation
+    set (oscSync, chance (0.2f) ? 1.0f : 0.0f);
+    set (fmAmount, chance (0.25f) ? range (5.0f, 45.0f) : 0.0f);
+    set (fmDirection, chance (0.5f) ? 1.0f : 0.0f);
+
     // echo: synced, short to medium
     set (echoSync, 1.0f);
     static const int echoDivs[] = { 5, 7, 8, 10, 11 };     // 1/16, 1/16., 1/8, 1/8., 1/4
@@ -1112,8 +1132,8 @@ void AcidAudioProcessor::randomisePatch()
     set (b3Decay, range (10.0f, 70.0f));
     set (b3Accent, range (40.0f, 95.0f));
 
-    // the Saturate / Foldback distortion (its on / off switch stays as it is)
-    set (distMode, chance (0.75f) ? 0.0f : 1.0f);
+    // the distortion (its on / off switch stays as it is): any of the six modes
+    set (distMode, (float) r.nextInt (distModeNames().size()));
     set (distDrive, range (15.0f, 75.0f));
     set (distAmount, range (30.0f, 100.0f));
 

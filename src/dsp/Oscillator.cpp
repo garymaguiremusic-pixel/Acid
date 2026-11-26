@@ -28,7 +28,8 @@ float Oscillator::process (float morph) noexcept
 {
     float saw = (float) (2.0 * ph - 1.0) - polyBlep (ph, inc);
     ph += inc;
-    if (ph >= 1.0) ph -= 1.0;
+    wrapped = ph >= 1.0;
+    if (wrapped) ph -= 1.0;
 
     morph = clampf (morph, 0.0f, 1.0f);
     if (morph <= 0.0f)
@@ -36,6 +37,24 @@ float Oscillator::process (float morph) noexcept
 
     const float sq = squareFromSaw (saw);
     return saw + (sq - saw) * morph;
+}
+
+float Oscillator::process (float morph, float pm) noexcept
+{
+    if (pm == 0.0f)
+        return process (morph);
+
+    double p = ph + (double) pm;
+    p -= std::floor (p);
+    float saw = (float) (2.0 * p - 1.0) - polyBlep (p, inc);
+    ph += inc;
+    wrapped = ph >= 1.0;
+    if (wrapped) ph -= 1.0;
+
+    morph = clampf (morph, 0.0f, 1.0f);
+    if (morph <= 0.0f)
+        return saw;
+    return saw + (squareFromSaw (saw) - saw) * morph;
 }
 
 float Oscillator::shapeAt (float phase, float morph) noexcept

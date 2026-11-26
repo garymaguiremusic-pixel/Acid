@@ -144,7 +144,8 @@ private:
     void renderVoice (float* left, float* right, int from, int to) noexcept;
     void computeModulation (int sampleInBlock, int numSamples) noexcept;
     void applyArpEvent (const as::arp::NoteEvent&) noexcept;
-    void playNoteOn (int note, bool accent, bool legato, float level = 1.0f, float filterVelocity = 1.0f, bool glide = true) noexcept;
+    void playNoteOn (int note, bool accent, bool legato, float level = 1.0f, float filterVelocity = 1.0f, bool glide = true,
+                     float stepVolume = 1.0f) noexcept;
     void playNoteOff() noexcept;
     void handleDirectMidi (const juce::MidiMessage&) noexcept;
     void passThrough (const juce::MidiMessage&, int time) noexcept;
@@ -213,7 +214,7 @@ private:
             *transistor, *filterVelLink, *filterVelAmount, *filterMode, *oscALock, *oscBLock,
             *engine, *oscAOctave, *oscBOctave, *b3Wave, *b3Tuning, *b3Octave, *b3Cutoff, *b3Resonance, *b3EnvMod,
             *b3Decay, *b3Accent, *b3Volume, *b3Model, *b3AccurateGate, *b3VcaNoise, *b3Vibrato, *b3PhaseReset,
-            *b3SlowSlide, *b3WeakAccentCap, *b3InfSustain, *b3SoftAccent,
+            *b3SlowSlide, *b3WeakAccentCap, *b3InfSustain, *b3SoftAccent, *b3VelLink, *oscSync, *fmAmount, *fmDirection,
             *distPageOn, *distOn, *distMode, *distDrive, *distAmount, *bass, *treble, *drive, *envMod, *decay, *accent, *envAttack, *accDecay, *accSweep, *slideTime,
             *arpOn, *arpMode, *arpRate, *arpRateType, *arpGate, *arpSwing, *arpOctave, *velMode, *bpm, *autoPlay,
             *midiOut, *seqLength, *seqEnd, *scaleKey, *scale, *scaleLock,

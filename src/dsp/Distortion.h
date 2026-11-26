@@ -7,7 +7,7 @@ namespace acid
 struct DistortionSettings
 {
     bool  on = false;
-    int   mode = 0;          // 0 Saturate, 1 Foldback
+    int   mode = 0;          // 0 Saturate, 1 Foldback, 2 Overdrive, 3 Fuzz, 4 Scream, 5 Rectify
     float drive = 0.5f;      // 0..1
     float distort = 0.7f;    // 0..1, dry / wet
 };
@@ -20,6 +20,10 @@ struct DistortionSettings
       Saturate: up to about +36 dB into a hard, asymmetric curve (even + odd harmonics).
       Foldback: up to about +32 dB into a wave folder; the waveform folds back on itself
                 more and more as Drive rises.
+      Overdrive: a pedal-style hard clip with a sharp knee (lopsided, so it growls).
+      Fuzz: a dead zone then a steep curve: square-edged, and it sputters as notes fade.
+      Scream: a resonant peak around 1.6 kHz pushed into a hard clipper.
+      Rectify: rectified: harsh and metallic, an octave of grit on top.
       Output: a low-pass takes the fizz off the top, then a DC blocker.
     The dry path is delayed by the oversampling latency (also while off), so the plugin's
     latency never changes. Switching on / off crossfades. */
@@ -45,7 +49,7 @@ private:
     double sr = 44100.0;
     DistortionSettings set;
     Halfband2x up[2] { Halfband2x (31), Halfband2x (31) }, down[2] { Halfband2x (31), Halfband2x (31) };
-    Biquad lowTrim[2], midPush[2], post1[2], post2[2];
+    Biquad lowTrim[2], midPush[2], screamPeak[2], post1[2], post2[2];
     DcBlocker dc[2];
     std::array<float, 32> dryBuf[2] {};
     int dryPos = 0;

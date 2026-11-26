@@ -371,7 +371,7 @@ TEST_CASE ("Distortion: off / dry is the input delayed by the latency, modes are
     d.process (l.data(), r.data(), 200);
     REQUIRE (std::abs (l[(size_t) (10 + Distortion::getLatencySamples())] - 0.5f) < 1.0e-6f);
 
-    for (int mode : { 0, 1 })
+    for (int mode : { 0, 1, 2, 3, 4, 5 })
         for (float drive : { 0.0f, 0.5f, 1.0f })
             for (float x : { -2.0f, -0.5f, 0.0f, 0.3f, 1.0f, 3.0f })
             {
@@ -393,4 +393,51 @@ TEST_CASE ("Distortion: off / dry is the input delayed by the latency, modes are
         on.process (l.data(), r.data(), 200);
         for (float x : l) REQUIRE (std::abs (x) < 2.0f);
     }
+}
+
+TEST_CASE ("Hard sync and FM change the sound and stay bounded", "[dsp][sync][fm]")
+{
+    auto render = [] (bool sync, float fm, bool bToA, float oscBLevel)
+    {
+        Voice v;
+        v.prepare (48000.0);
+        VoiceSettings s;
+        s.cutoffHz = s.cutoffLowHz = 18000.0f;     // filter open: hear the oscillators
+        s.resonance = 0.0f;
+        s.envMod = 0.0f;
+        s.ampDecayMs = 10000.0f;
+        s.oscBLevel = oscBLevel;
+        s.oscBTuneSemis = 7.3f;
+        s.oscSync = sync;
+        s.fmAmount = fm;
+        s.fmBtoA = bToA;
+        v.setSettings (s);
+        v.noteOn (45, false, false);
+        std::vector<float> l (8192), r (8192);
+        v.render (l.data(), r.data(), (int) l.size(), {}, 0);
+        return l;
+    };
+    auto difference = [] (const std::vector<float>& a, const std::vector<float>& b)
+    {
+        double d = 0.0, e = 0.0;
+        for (size_t i = 2048; i < a.size(); ++i) { d += (a[i] - b[i]) * (a[i] - b[i]); e += a[i] * a[i]; }
+        return d / (e + 1.0e-12);
+    };
+
+    const auto plain = render (false, 0.0f, false, 1.0f);
+    const auto synced = render (true, 0.0f, false, 1.0f);
+    const auto fmAB = render (false, 0.6f, false, 1.0f);
+    const auto fmBA = render (false, 0.6f, true, 0.0f);
+    const auto aOnly = render (false, 0.0f, false, 0.0f);
+
+    REQUIRE (difference (plain, synced) > 0.05);
+    REQUIRE (difference (plain, fmAB) > 0.05);
+    REQUIRE (difference (aOnly, fmBA) > 0.05);       // B > A is heard with Osc B's level at 0
+
+    for (const auto* x : { &synced, &fmAB, &fmBA })
+        for (float v : *x)
+        {
+            REQUIRE (std::isfinite (v));
+            REQUIRE (std::abs (v) < 4.0f);
+        }
 }

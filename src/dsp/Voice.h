@@ -31,6 +31,9 @@ struct VoiceSettings
     bool  velLink         = false;    // velocity moves the cutoff
     float velAmount       = 0.5f;     // 0..1: how far (up to kVelocityOctaves)
 
+    bool  oscSync         = false;    // hard sync: Osc B restarts with Osc A
+    float fmAmount        = 0.0f;     // 0..1
+    bool  fmBtoA          = false;    // false: Osc A modulates Osc B, true: Osc B modulates Osc A
     float oscBLevel       = 0.0f;     // 0..1
     float oscBTuneSemis   = 0.0f;
     float oscBDetuneCents = 8.0f;
@@ -65,7 +68,8 @@ public:
     static constexpr float kAccentOctaves = 2.5f;
     static constexpr float kVelocityOctaves = 4.0f;   // Vel Link at 100 %: the lowest velocity closes this far
     static constexpr int kBaseNote = 36;          // C2: the lowest note of a pattern at octave 0
-    static constexpr float kOutputTrim = 0.9f;    // output level (headroom for the tube and echo)
+    static constexpr float kOutputTrim = 0.9f;
+    static constexpr float kFmDepth = 1.5f;       // FM at 100 %: the phase moves up to 1.5 cycles    // output level (headroom for the tube and echo)
 
     void prepare (double sampleRate);
     void reset();

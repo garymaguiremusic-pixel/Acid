@@ -68,11 +68,16 @@ int main (int argc, char** argv)
 
     // the same pattern on the 303: dry, through Saturate / Foldback at three drives, and with Layers
     {
-        struct Case { const char* name; float distOn, mode, drive, oscB, unison; };
+        struct Case { const char* name; float distOn, mode, drive, oscB, unison, sync = 0, fm = 0, fmDir = 0, oscBTune = 0; };
         const Case cases[] = { { "303_dry", 0, 0, 0, 0, 1 },
                                { "303_sat_drive0", 1, 0, 0, 0, 1 }, { "303_sat_drive50", 1, 0, 50, 0, 1 }, { "303_sat_drive100", 1, 0, 100, 0, 1 },
                                { "303_fold_drive0", 1, 1, 0, 0, 1 }, { "303_fold_drive50", 1, 1, 50, 0, 1 }, { "303_fold_drive100", 1, 1, 100, 0, 1 },
-                               { "303_layers", 0, 0, 0, 60, 4 } };
+                               { "303_overdrive_drive50", 1, 2, 50, 0, 1 }, { "303_fuzz_drive50", 1, 3, 50, 0, 1 },
+                               { "303_scream_drive50", 1, 4, 50, 0, 1 }, { "303_rectify_drive50", 1, 5, 50, 0, 1 },
+                               { "303_layers", 0, 0, 0, 60, 4 },
+                               { "303_sync", 0, 0, 0, 100, 1, 1, 0, 0, 7 },
+                               { "303_fm_a_to_b", 0, 0, 0, 100, 1, 0, 40, 0, 0 },
+                               { "303_fm_b_to_a", 0, 0, 0, 0, 1, 0, 40, 1, 12 } };
         processor->setParameterValue ("engine", 1.0f);
         for (const auto& k : cases)
         {
@@ -82,6 +87,10 @@ int main (int argc, char** argv)
             processor->setParameterValue ("distAmount", 100.0f);
             processor->setParameterValue ("oscBLevel", k.oscB);
             processor->setParameterValue ("unisonVoices", k.unison);
+            processor->setParameterValue ("oscSync", k.sync);
+            processor->setParameterValue ("fmAmount", k.fm);
+            processor->setParameterValue ("fmDirection", k.fmDir);
+            processor->setParameterValue ("oscBTune", k.oscBTune);
             processor->reset();
             head.ppq = 0.0;
             AudioBuffer<float> o (2, (int) sr * 4);
@@ -104,6 +113,9 @@ int main (int argc, char** argv)
         processor->setParameterValue ("distOn", 0.0f);
         processor->setParameterValue ("oscBLevel", 0.0f);
         processor->setParameterValue ("unisonVoices", 1.0f);
+        processor->setParameterValue ("oscSync", 0.0f);
+        processor->setParameterValue ("fmAmount", 0.0f);
+        processor->setParameterValue ("oscBTune", 0.0f);
     }
 
     // screenshots

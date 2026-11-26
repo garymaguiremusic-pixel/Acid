@@ -44,6 +44,11 @@ VoiceSettings Voice303::mapSettings (const Settings303& s)
     v.unisonVoices = std::clamp (s.unisonVoices, 1, Voice::kMaxUnison);
     v.unisonSpread = clampf (s.unisonSpread, 0.0f, 1.0f);
     v.unisonFree = s.unisonFree;
+    v.oscSync = s.oscSync;
+    v.fmAmount = clampf (s.fmAmount, 0.0f, 1.0f);
+    v.fmBtoA = s.fmBtoA;
+    v.velLink = s.velLink;
+    v.velAmount = 0.45f;                               // Velocity: low steps close the filter up to ~1.8 octaves
     return v;
 }
 
@@ -68,11 +73,11 @@ void Voice303::setSettings (const Settings303& s)
     voice.setSettings (mapSettings (s));
 }
 
-void Voice303::noteOn (int midiNote, bool accent, bool legato, float level, bool glide)
+void Voice303::noteOn (int midiNote, bool accent, bool legato, float level, bool glide, float filterVelocity)
 {
     if (! legato || ! voice.isGateOn())
         vibPhase = 0.0;
-    voice.noteOn (midiNote, accent, legato, level, 1.0f, glide);
+    voice.noteOn (midiNote, accent, legato, level, filterVelocity, glide);
 }
 
 void Voice303::render (float* left, float* right, int numSamples, const VoiceMod& lfo) noexcept

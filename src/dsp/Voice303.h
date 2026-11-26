@@ -37,6 +37,11 @@ struct Settings303
     int   unisonVoices    = 1;
     float unisonSpread    = 0.25f;
     bool  unisonFree      = true;
+    bool  oscSync         = false;
+    float fmAmount        = 0.0f;
+    bool  fmBtoA          = false;
+
+    bool  velLink         = false;   // Velocity: the step velocity opens / closes the filter
 };
 
 /** A 303-style voice, built on Acid's diode-ladder voice with the hardware's behaviour:
@@ -54,7 +59,7 @@ public:
     void reset();
     void setSettings (const Settings303&);
 
-    void noteOn (int midiNote, bool accent, bool legato, float level = 1.0f, bool glide = true);
+    void noteOn (int midiNote, bool accent, bool legato, float level = 1.0f, bool glide = true, float filterVelocity = 1.0f);
     void noteOff()                              { voice.noteOff(); }
     bool isGateOn() const noexcept              { return voice.isGateOn(); }
     bool isSounding() const noexcept            { return voice.isSounding(); }

@@ -5,18 +5,47 @@ namespace acid
 float Distortion::driveGain (int mode, float drive) noexcept
 {
     drive = clampf (drive, 0.0f, 1.0f);
-    // Saturate: +6 .. +36 dB, Foldback: +4 .. +32 dB
-    const float db = mode == 1 ? 4.0f + 28.0f * drive : 6.0f + 30.0f * drive;
+    // dB at no drive and at full drive, per mode
+    static constexpr float lo[] = { 6.0f, 4.0f, 8.0f, 12.0f, 4.0f, 4.0f };
+    static constexpr float hi[] = { 36.0f, 32.0f, 38.0f, 42.0f, 30.0f, 30.0f };
+    const int m = std::clamp (mode, 0, 5);
+    const float db = lo[m] + (hi[m] - lo[m]) * drive;
     return std::pow (10.0f, db / 20.0f);
 }
 
 float Distortion::curve (float x, int mode) noexcept
 {
-    if (mode == 1)
+    switch (mode)
     {
-        // wave folder: a sine fold, rounded off so the peaks stay musical
-        const float folded = std::sin (x * 1.5707963f);
-        return 0.95f * folded;
+        case 1:     // foldback: a sine fold, rounded off so the peaks stay musical
+            return 0.95f * std::sin (x * 1.5707963f);
+
+        case 2:     // overdrive: a hard clip with a sharp knee, the negative side clipping later
+        {
+            const float k = x >= 0.0f ? x : x * 0.8f;
+            const float a = std::abs (k);
+            const float y = k / std::pow (1.0f + a * a * a * a * a * a, 1.0f / 6.0f);
+            return 0.95f * (x >= 0.0f ? y : y * 1.25f);
+        }
+
+        case 3:     // fuzz: a dead zone (it sputters as notes fade), then a steep, square-edged curve
+        {
+            const float a = std::max (0.0f, std::abs (x) - 0.35f);
+            const float y = fastTanh (3.0f * a);
+            return 0.92f * (x >= 0.0f ? y : -0.9f * y);
+        }
+
+        case 4:     // scream: a plain hard clip (the resonant peak goes in before it)
+            return 0.92f * clampf (x, -1.0f, 1.0f);
+
+        case 5:     // rectify: mostly the rectified wave (octave up), a little of the clipped wave
+        {
+            const float s = fastTanh (x);
+            return 0.95f * clampf (1.5f * std::abs (s) - 0.75f + 0.35f * s, -1.0f, 1.0f);
+        }
+
+        default:
+            break;
     }
 
     // saturate: asymmetric (the positive side clips harder), with a hard knee
@@ -37,6 +66,7 @@ void Distortion::prepare (double sampleRate)
     {
         lowTrim[c].setLowShelf (180.0f, -9.0f, sr);       // keep the bass tight
         midPush[c].setBandpass (1100.0f, 0.7f, sr);       // added on top: the squelch drives hardest
+        screamPeak[c].setBandpass (1600.0f, 3.0f, sr);    // Scream: a narrow, resonant peak
         post1[c].setLowpass (7500.0f, 0.6f, sr);          // take the fizz off
         post2[c].setLowpass (11000.0f, 0.5f, sr);
         dc[c].prepare (sr);
@@ -58,6 +88,7 @@ void Distortion::reset()
         down[c].reset();
         lowTrim[c].reset();
         midPush[c].reset();
+        screamPeak[c].reset();
         post1[c].reset();
         post2[c].reset();
         dc[c].reset();
@@ -94,6 +125,8 @@ void Distortion::process (float* left, float* right, int numSamples) noexcept
             // input voicing, then the gain into the curve
             float pre = lowTrim[c].process (x);
             pre += 1.2f * midPush[c].process (pre);
+            if (mode == 4)
+                pre += 4.0f * screamPeak[c].process (pre);
             pre *= gain;
 
             float a, b;

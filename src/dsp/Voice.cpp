@@ -168,7 +168,10 @@ void Voice::render (float* left, float* right, int numSamples, const VoiceMod& m
         const float baseHz = midiToHz (pitch);
         for (int i = 0; i < activeVoices; ++i)
             unison[i].setFrequency (baseHz * std::exp2 (unisonDetune[i] / 1200.0f));
-        if (set.oscBLevel > 0.0f)
+        const float fm = set.fmAmount * set.fmAmount * kFmDepth;
+        const bool fmA = fm > 0.0f && ! set.fmBtoA, fmB = fm > 0.0f && set.fmBtoA;
+        const bool runB = set.oscBLevel > 0.0f || fmB;
+        if (runB)
             oscB.setFrequency (baseHz * std::exp2 ((set.oscBTuneSemis + set.oscBDetuneCents * 0.01f) / 12.0f));
 
         // --- envelopes, accent and cutoff ----------------------------------------------
@@ -197,15 +200,36 @@ void Voice::render (float* left, float* right, int numSamples, const VoiceMod& m
         for (int k = 0; k < 2; ++k)
         {
             float l = 0.0f, r = 0.0f;
+
+            // FM B > A: Osc B runs first and pushes the phase of Osc A (and its unison voices)
+            float bRaw = 0.0f;
+            if (fmB)
+                bRaw = oscB.process (morph);
+
+            float aFirst = 0.0f;
             for (int i = 0; i < activeVoices; ++i)
             {
-                const float s = unison[i].process (morph);
+                const float s = fmB ? unison[i].process (morph, fm * bRaw) : unison[i].process (morph);
+                if (i == 0) aFirst = s;
                 l += s * unisonGainL[i];
                 r += s * unisonGainR[i];
             }
+
+            if (! fmB && runB)
+            {
+                // hard sync: Osc B restarts whenever Osc A starts a new cycle
+                if (set.oscSync && unison[0].justWrapped())
+                    oscB.syncReset (unison[0].wrapFraction());
+                bRaw = fmA ? oscB.process (morph, fm * aFirst) : oscB.process (morph);
+            }
+            else if (fmB && set.oscSync && unison[0].justWrapped())
+            {
+                oscB.syncReset (unison[0].wrapFraction());
+            }
+
             if (set.oscBLevel > 0.0f)
             {
-                const float b = oscB.process (morph) * set.oscBLevel;
+                const float b = bRaw * set.oscBLevel;
                 l += b;
                 r += b;
             }
