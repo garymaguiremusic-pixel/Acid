@@ -379,7 +379,7 @@ TEST_CASE ("Distortion: off / dry is the input delayed by the latency, modes are
                 REQUIRE (std::isfinite (y));
                 REQUIRE (std::abs (y) <= 1.5f);   // nearly clean at no drive, so a hot input passes through
             }
-    REQUIRE (Distortion::shape (0.0f, 0, 0.7f) == 0.0f);
+    REQUIRE (std::abs (Distortion::shape (0.0f, 0, 0.7f)) < 1.0e-6f);   // silence stays silent (within float rounding)
 
     // on, saturating: output stays bounded
     Distortion on;
