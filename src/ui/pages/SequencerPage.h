@@ -18,8 +18,8 @@ public:
 private:
 
     // Arpeggiator
-    juce::TextButton arpOnButton { "Arp On" }, autoPlayButton { "Auto Play" }, midiOutButton { "MIDI Out" };
-    juce::ComboBox modeBox, rateBox, velModeBox;
+    juce::TextButton arpOnButton { "Arp On" }, midiOutButton { "MIDI Out" }, modeStep { "Step" };
+    juce::ComboBox rateBox;
     SegmentedButtons rateTypeButtons, octaveButtons;
     AcidKnob gateKnob { AcidKnob::Size::Large, "Gate" }, swingKnob { AcidKnob::Size::Large, "Swing" };
     LcdDisplay gateLcd, swingLcd;

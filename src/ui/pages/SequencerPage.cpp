@@ -22,11 +22,13 @@ SequencerPage::SequencerPage (AcidAudioProcessor& p)
 
     // Arpeggiator ---------------------------------------------------------------------
     attach (arpOnButton, arpOn);
-    attach (autoPlayButton, autoPlay);
     attach (midiOutButton, midiOut);
-    attach (modeBox, arpMode);
+    // Mode: Step only (the step sequencer plays the pattern)
+    modeStep.setToggleState (true, dontSendNotification);
+    modeStep.setInterceptsMouseClicks (false, false);     // the only mode: shown, not a choice
+    setHelp (modeStep, "MODE  -  Step: the step sequencer plays the pattern");
+    addAndMakeVisible (modeStep);
     attach (rateBox, arpRate);
-    attach (velModeBox, velMode);
     addAndMakeVisible (rateTypeButtons);
     addAndMakeVisible (octaveButtons);
     setHelp (rateTypeButtons, "TIME  -  " + helpForParameter (arpRateType));
@@ -92,7 +94,6 @@ void SequencerPage::paint (Graphics& g)
         label ("Mode", 94, 24, 110);
         label ("Octave", 222, 24, 100);
         label ("Time", 12, 76, 70);
-        label ("Velocity", 222, 183, 100);
     }
 
     AcidLookAndFeel::drawPanel (g, kRandomPanel, "Randomise");
@@ -105,7 +106,7 @@ void SequencerPage::resized()
     // Arpeggiator
     const int ax = (int) kArpPanel.getX(), ay = (int) kArpPanel.getY();
     arpOnButton.setBounds (ax + 10, ay + 40, 74, 26);
-    modeBox.setBounds (ax + 92, ay + 40, 120, 26);
+    modeStep.setBounds (ax + 92, ay + 40, 120, 26);
     octaveButtons.setBounds (ax + 220, ay + 40, 148, 26);
     rateBox.setBounds (ax + 10, ay + 92, 74, 26);
     rateTypeButtons.setBounds (ax + 92, ay + 92, 276, 26);
@@ -113,10 +114,8 @@ void SequencerPage::resized()
     swingKnob.setBounds (ax + 116, ay + 126, 84, 84);
     gateLcd.setBounds (ax + 10, ay + 216, 94, 26);
     swingLcd.setBounds (ax + 112, ay + 216, 94, 26);
-    autoPlayButton.setBounds (ax + 220, ay + 126, 148, 24);
-    midiOutButton.setBounds (ax + 220, ay + 154, 148, 24);
-    velModeBox.setBounds (ax + 220, ay + 198, 148, 24);
-    tempoField.setBounds (ax + 220, ay + 230, 148, 26);
+    midiOutButton.setBounds (ax + 220, ay + 152, 148, 26);
+    tempoField.setBounds (ax + 220, ay + 216, 148, 26);
 
     // Randomise
     const int rx = (int) kRandomPanel.getX(), ry = (int) kRandomPanel.getY();

@@ -373,13 +373,13 @@ as::arp::ArpSettings AcidAudioProcessor::readArpSettings() const noexcept
 {
     as::arp::ArpSettings s;
     s.enabled      = P.arpOn->load() > 0.5f;
-    s.mode         = (as::ArpMode) roundToInt (P.arpMode->load());
+    s.mode         = as::ArpMode::Step;                 // Step only (the step sequencer)
     s.rateIndex    = roundToInt (P.arpRate->load());
     s.rateType     = (as::RateType) roundToInt (P.arpRateType->load());
     s.gate         = P.arpGate->load() * 0.01f;
     s.swing        = P.arpSwing->load() * 0.01f;
     s.octaves      = roundToInt (P.arpOctave->load());
-    s.velocityMode = (as::VelocityMode) roundToInt (P.velMode->load());
+    s.velocityMode = as::VelocityMode::Step;            // the Velocity lane sets each step's loudness
     s.retrigger    = true;          // mono synth: a new step retriggers, a Tie glides
 
     const int length = roundToInt (P.seqLength->load()) == 0 ? 16 : 32;
@@ -388,7 +388,7 @@ as::arp::ArpSettings AcidAudioProcessor::readArpSettings() const noexcept
     s.scaleKey   = roundToInt (P.scaleKey->load());
     s.scaleIndex = roundToInt (P.scale->load());
     s.followKey  = P.scaleLock->load() > 0.5f;
-    s.autoPlay   = P.autoPlay->load() > 0.5f;
+    s.autoPlay   = true;                                // plays whenever the host plays; keys take over
     s.autoNote   = kSequenceBaseNote + s.scaleKey;     // the Key's root in the bass octave
     return s;
 }
