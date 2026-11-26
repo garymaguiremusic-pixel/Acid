@@ -176,7 +176,9 @@ namespace as::arp
                 auto& s = p.steps[(size_t) i];
                 s.transpose = jlimit (-24, 24, (int) step.getProperty (transpose, 0));
                 s.velocity  = jlimit (0, 127, (int) step.getProperty (velocity, 100));
-                s.tie       = (bool) step.getProperty (tie, false);
+                s.tie       = false;
+                if ((bool) step.getProperty (tie, false))
+                    s.glide = true;     // Tie was removed: an old tie holds through Glide (same pitch = held note)
                 s.ratchet   = jlimit (1, kMaxRatchet, (int) step.getProperty (ratchet, 1));
                 s.reverse   = (bool) step.getProperty (reverse, false);
                 s.accent    = (bool) step.getProperty (accentID, false);

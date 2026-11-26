@@ -25,7 +25,7 @@ SeqPanel::SeqPanel (AcidAudioProcessor& p)
     importButton.onClick = [this] { makeImportMenu().showMenuAsync (PopupMenu::Options().withTargetComponent (&importButton)); };
     setHelp (undoButton, "UNDO  -  undo the last pattern change (edit, randomise, import or preset)");
     setHelp (redoButton, "REDO  -  redo a pattern change");
-    setHelp (clearButton, "CLEAR  -  every step back to full volume, velocity 100, no transpose, no tie");
+    setHelp (clearButton, "CLEAR  -  every step back to full volume, velocity 100, no transpose, no glide");
     setHelp (importButton, "IMPORT  -  a MIDI file (notes only) or the notes of an audio file into the steps. You can also drop a file on the grid.");
     for (auto* b : { &undoButton, &redoButton, &clearButton, &importButton })
         addAndMakeVisible (*b);

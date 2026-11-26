@@ -9,7 +9,7 @@ namespace as::arp
     {
         float density = 0.75f;        // chance a step plays (0..1)
         int range = 12;               // transpose range, +/- semitones
-        float tieProbability = 0.15f; // chance an active step ties into the next
+        float tieProbability = 0.0f;  // chance an active step ties into the next
         float ratchetProbability = 0.0f; // chance an active step gets 2-4 ratchets
         float reverseProbability = 0.0f; // chance an active step plays the sample backwards
         float accentProbability = 0.0f;  // chance an active step is accented

@@ -28,6 +28,15 @@ struct Settings303
     bool weakAccentCap  = false;   // an aged accent capacitor: more accent build-up
     bool infSustain     = false;   // the VCA holds while the gate is open (no decay)
     bool softAccent     = false;   // a gentler accent
+
+    // the Layers page, shared with the Acid synth
+    float oscBLevel       = 0.0f;
+    float oscBTuneSemis   = 0.0f;
+    float oscBDetuneCents = 8.0f;
+    bool  oscBLock        = false;
+    int   unisonVoices    = 1;
+    float unisonSpread    = 0.25f;
+    bool  unisonFree      = true;
 };
 
 /** A 303-style voice, built on Acid's diode-ladder voice with the hardware's behaviour:
@@ -50,8 +59,9 @@ public:
     bool isGateOn() const noexcept              { return voice.isGateOn(); }
     bool isSounding() const noexcept            { return voice.isSounding(); }
 
-    /** Overwrites left / right with numSamples of output. */
-    void render (float* left, float* right, int numSamples) noexcept;
+    /** Overwrites left / right with numSamples of output. 'lfo' holds the LFO modulation
+        (the Layers page's LFOs), indexed from 0 for these samples. */
+    void render (float* left, float* right, int numSamples, const VoiceMod& lfo = {}) noexcept;
 
     int getLatencySamples() const noexcept      { return voice.getLatencySamples(); }
     float getFilterEnv() const noexcept         { return voice.getFilterEnv(); }

@@ -123,7 +123,7 @@ namespace as::import
             s.volume = 127;
             lastStepUsed = jmax (lastStepUsed, k);
 
-            // a long note: hold it with ties over the following empty steps
+            // a long note: hold it (Glide at the same pitch) over the following empty steps
             const auto span = jmax (1, (int) std::lround (n.length / step));
             for (int j = k + 1; j < jmin (maxSteps, k + span); ++j)
             {
@@ -132,7 +132,7 @@ namespace as::import
                     steps[(size_t) j - 1].glide = true;   // still sounding when the next note starts: a slide (Acid)
                     break;
                 }
-                steps[(size_t) j - 1].tie = true;
+                steps[(size_t) j - 1].glide = true;     // the same pitch: the note just holds
                 auto& held = steps[(size_t) j];
                 held.transpose = s.transpose;
                 held.velocity = s.velocity;

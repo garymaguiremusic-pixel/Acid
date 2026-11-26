@@ -101,7 +101,6 @@ namespace ParamIDs
     // Randomiser (saved, not automatable)
     inline constexpr auto rndDensity     = "rndDensity";
     inline constexpr auto rndRange       = "rndRange";
-    inline constexpr auto rndTieProb     = "rndTieProb";
     inline constexpr auto rndVelMin      = "rndVelMin";
     inline constexpr auto rndVelMax      = "rndVelMax";
     inline constexpr auto rndRatchet     = "rndRatchet";
@@ -111,7 +110,6 @@ namespace ParamIDs
     inline constexpr auto rndLockPitch   = "rndLockPitch";
     inline constexpr auto rndLockVel     = "rndLockVel";
     inline constexpr auto rndLockRest    = "rndLockRest";
-    inline constexpr auto rndLockTie     = "rndLockTie";
     inline constexpr auto rndLockRatchet = "rndLockRatchet";
     inline constexpr auto rndLockAccent  = "rndLockAccent";
     inline constexpr auto rndFileNotes   = "rndFileNotes";

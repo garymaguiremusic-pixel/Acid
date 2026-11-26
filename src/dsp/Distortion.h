@@ -12,10 +12,15 @@ struct DistortionSettings
     float distort = 0.7f;    // 0..1, dry / wet
 };
 
-/** Saturate / Foldback distortion, 2x oversampled.
-      Saturate: a gently pre-smoothed signal through a tanh curve; more drive = harder
-                clipping. The distorted signal's level follows the dry signal's, so Drive changes the grit rather than the volume.
-      Foldback: the waveform folds back on itself (a sine fold); drive sets how often.
+/** Saturate / Foldback distortion, 2x oversampled. Loud and aggressive by design: the
+    distorted signal is NOT levelled back down to the dry one, so Drive pushes it harder
+    and louder, like driving a real pedal.
+      Input: the lows are trimmed and the mids pushed before the curve, so the bass stays
+             tight and the squelch is what distorts.
+      Saturate: up to about +36 dB into a hard, asymmetric curve (even + odd harmonics).
+      Foldback: up to about +32 dB into a wave folder; the waveform folds back on itself
+                more and more as Drive rises.
+      Output: a low-pass takes the fizz off the top, then a DC blocker.
     The dry path is delayed by the oversampling latency (also while off), so the plugin's
     latency never changes. Switching on / off crossfades. */
 class Distortion
@@ -28,18 +33,22 @@ public:
 
     static int getLatencySamples() noexcept { return 15; }   // a 31-tap half-band up + down
 
-    /** The shaping curve at the oversampled rate (for tests). */
+    /** The input gain Drive gives (linear). */
+    static float driveGain (int mode, float drive) noexcept;
+
+    /** The shaping curve at the oversampled rate, after the input gain (for tests). */
     static float shape (float x, int mode, float drive) noexcept;
 
 private:
+    static float curve (float x, int mode) noexcept;
+
     double sr = 44100.0;
     DistortionSettings set;
     Halfband2x up[2] { Halfband2x (31), Halfband2x (31) }, down[2] { Halfband2x (31), Halfband2x (31) };
-    OnePole smooth[2];
+    Biquad lowTrim[2], midPush[2], post1[2], post2[2];
     DcBlocker dc[2];
     std::array<float, 32> dryBuf[2] {};
     int dryPos = 0;
-    float dryEnv[2] {}, wetEnv[2] {}, makeup[2] { 1.0f, 1.0f }, envCoef = 0.001f, gainCoef = 0.001f;
     Smoother onFade, driveSm, mixSm;
 };
 } // namespace acid

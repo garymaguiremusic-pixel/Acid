@@ -210,13 +210,11 @@ as::arp::RandomiseSettings AcidAudioProcessor::readRandomiseSettings() const
     as::arp::RandomiseSettings r;
     r.density            = value (rndDensity) * 0.01f;
     r.range              = roundToInt (value (rndRange));
-    r.tieProbability     = value (rndTieProb) * 0.01f;
     r.velocityMin        = roundToInt (value (rndVelMin));
     r.velocityMax        = roundToInt (value (rndVelMax));
     r.lockPitch          = value (rndLockPitch) > 0.5f;
     r.lockVelocity       = value (rndLockVel) > 0.5f;
     r.lockRests          = value (rndLockRest) > 0.5f;
-    r.lockTies           = value (rndLockTie) > 0.5f;
     r.ratchetProbability = value (rndRatchet) * 0.01f;
     r.lockRatchets       = value (rndLockRatchet) > 0.5f;
     r.reverseProbability = 0.0f;            // a synth has no sample to play backwards
@@ -493,6 +491,13 @@ void AcidAudioProcessor::updateSettings() noexcept
     b.weakAccentCap = P.b3WeakAccentCap->load() > 0.5f;
     b.infSustain    = P.b3InfSustain->load() > 0.5f;
     b.softAccent    = P.b3SoftAccent->load() > 0.5f;
+    b.oscBLevel       = v.oscBLevel;           // the Layers page plays on the 303 too
+    b.oscBTuneSemis   = v.oscBTuneSemis;
+    b.oscBDetuneCents = v.oscBDetuneCents;
+    b.oscBLock        = v.oscBLock;
+    b.unisonVoices    = v.unisonVoices;
+    b.unisonSpread    = v.unisonSpread;
+    b.unisonFree      = v.unisonFree;
     voice303.setSettings (b);
 
     const bool distPage = P.distPageOn->load() > 0.5f;
@@ -619,9 +624,11 @@ void AcidAudioProcessor::renderVoice (float* left, float* right, int from, int t
         const bool acid = activeEngine == 0 || voice.isSounding();
         const bool b303 = activeEngine == 1 || voice303.isSounding();
 
+        if (acid || b303)
+            computeModulation (pos, n);       // the LFOs move both synths
+
         if (acid)
         {
-            computeModulation (pos, n);
             voice.render (left + pos, right + pos, n, voiceMod, 0);
             tone.process (left + pos, right + pos, n);        // Acid's Bass / Treble
         }
@@ -633,7 +640,7 @@ void AcidAudioProcessor::renderVoice (float* left, float* right, int from, int t
 
         if (b303)
         {
-            voice303.render (scratchL, scratchR, n);
+            voice303.render (scratchL, scratchR, n, voiceMod);
             for (int i = 0; i < n; ++i)
             {
                 left[pos + i] += scratchL[i];

@@ -37,13 +37,13 @@ namespace
             }
             if (a.kind == AcidStep::Tie)
             {
-                // holds the previous note: the previous step ties into this one at the same pitch
+                // holds the previous note: the previous step glides into this one at the same pitch
                 if (i == 0 || out.pattern.steps[(size_t) i - 1].isRest())
                 {
                     s.volume = 0;
                     continue;
                 }
-                out.pattern.steps[(size_t) i - 1].tie = true;
+                out.pattern.steps[(size_t) i - 1].glide = true;
                 s.transpose = out.pattern.steps[(size_t) i - 1].transpose;
                 s.ratchet = 1;
             }

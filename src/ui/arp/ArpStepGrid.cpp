@@ -47,8 +47,6 @@ ArpStepGrid::Layout ArpStepGrid::getLayout() const
 
     l.header = b.removeFromTop (15.0f);
     b.removeFromTop (3.0f);
-    l.tie = b.removeFromBottom (18.0f);
-    b.removeFromBottom (3.0f);
     l.glide = b.removeFromBottom (18.0f);
     b.removeFromBottom (3.0f);
     l.accent = b.removeFromBottom (18.0f);
@@ -82,7 +80,6 @@ ArpStepGrid::Lane ArpStepGrid::laneAt (Point<float> p) const
     if (l.volume.contains (p))       return Lane::Volume;
     if (l.velocity.contains (p))     return Lane::Velocity;
     if (l.transpose.contains (p))    return Lane::Transpose;
-    if (l.tie.contains (p))          return Lane::Tie;
     if (l.glide.contains (p))        return Lane::Glide;
     if (l.ratchet.contains (p))      return Lane::Ratchet;
     if (l.accent.contains (p))       return Lane::Accent;
@@ -115,7 +112,6 @@ void ArpStepGrid::paint (Graphics& g)
     CustomLookAndFeel::drawSmallLabel (g, "Ratchet", l.labels.withY (l.ratchet.getY()).withHeight (l.ratchet.getHeight()), Justification::centredLeft);
     CustomLookAndFeel::drawSmallLabel (g, "Accent", l.labels.withY (l.accent.getY()).withHeight (l.accent.getHeight()), Justification::centredLeft);
     CustomLookAndFeel::drawSmallLabel (g, "Glide", l.labels.withY (l.glide.getY()).withHeight (l.glide.getHeight()), Justification::centredLeft);
-    CustomLookAndFeel::drawSmallLabel (g, "Tie", l.labels.withY (l.tie.getY()).withHeight (l.tie.getHeight()), Justification::centredLeft);
 
     // lane backgrounds
     CustomLookAndFeel::drawInsetBox (g, l.volume);
@@ -123,7 +119,6 @@ void ArpStepGrid::paint (Graphics& g)
     CustomLookAndFeel::drawInsetBox (g, l.transpose);
     CustomLookAndFeel::drawInsetBox (g, l.ratchet);
     CustomLookAndFeel::drawInsetBox (g, l.accent);
-    CustomLookAndFeel::drawInsetBox (g, l.tie);
 
     // guide lines in the volume lane at 25/50/75 %
     g.setColour (Colours::white.withAlpha (0.05f));
@@ -279,33 +274,6 @@ void ArpStepGrid::paint (Graphics& g)
             }
         }
 
-        // tie arrow
-        {
-            auto c = cell (l.tie, i);
-            const float size = jmin (c.getHeight() - 8.0f, c.getWidth() - 6.0f);
-            auto r = c.withSizeKeepingCentre (size, size);
-            Path arrow;
-            arrow.addTriangle (r.getX() + size * 0.2f, r.getY(), r.getRight(), r.getCentreY(), r.getX() + size * 0.2f, r.getBottom());
-            arrow.addRectangle (r.getX() - size * 0.15f, r.getCentreY() - size * 0.12f, size * 0.45f, size * 0.24f);
-
-            if (s.tie)
-            {
-                g.setColour (VirusColours::accentGlow.withAlpha (0.35f * alpha));
-                g.strokePath (arrow, PathStrokeType (3.0f));
-                g.setColour (VirusColours::accent.withMultipliedAlpha (alpha));
-            }
-            else
-            {
-                g.setColour (Theme::get().text.withAlpha (0.14f * alpha));
-            }
-            g.fillPath (arrow);
-
-            if (i > 0)
-            {
-                g.setColour (Colours::black.withAlpha (0.5f));
-                g.drawVerticalLine (roundToInt (c.getX()), c.getY() + 3.0f, c.getBottom() - 3.0f);
-            }
-        }
     }
 
     // End marker
@@ -313,7 +281,7 @@ void ArpStepGrid::paint (Graphics& g)
     {
         const float x = l.gridX + endStep * l.stepWidth;
         g.setColour (Colours::white.withAlpha (0.8f));                  // End marker
-        g.drawLine (x, l.header.getY(), x, l.tie.getBottom(), 2.0f);
+        g.drawLine (x, l.header.getY(), x, l.glide.getBottom(), 2.0f);
     }
 
     // hover outline
@@ -324,7 +292,7 @@ void ArpStepGrid::paint (Graphics& g)
                         : hoverLane == Lane::Transpose ? l.transpose
                         : hoverLane == Lane::Ratchet ? l.ratchet
                         : hoverLane == Lane::Accent ? l.accent
-                        : hoverLane == Lane::Glide ? l.glide : l.tie;
+                        : l.glide;
         g.setColour (VirusColours::accent.withAlpha (0.4f));
         g.drawRect (cell (lane, hoverStep).reduced (1.0f), 1.0f);
     }
@@ -464,11 +432,6 @@ void ArpStepGrid::mouseDown (const MouseEvent& e)
             dragStartY = e.position.y;
             break;
 
-        case Lane::Tie:
-            tiePaintValue = ! s.tie;
-            s.tie = tiePaintValue;
-            break;
-
         case Lane::Reverse:
             break;
 
@@ -521,10 +484,6 @@ void ArpStepGrid::mouseDrag (const MouseEvent& e)
             pattern.steps[(size_t) dragStep].transpose = applyQuantise (dragStartTranspose + delta);
             break;
         }
-
-        case Lane::Tie:
-            pattern.steps[(size_t) stepAt (e.position.x)].tie = tiePaintValue;
-            break;
 
         case Lane::Ratchet:
             pattern.steps[(size_t) stepAt (e.position.x)].ratchet = ratchetPaintValue;
@@ -629,7 +588,6 @@ String ArpStepGrid::getHoverHelp() const
         case Lane::Ratchet:   return step + "RATCHET x" + String (s.ratchet) + "  -  click to cycle 1-4 hits, shift-click back, scroll";
         case Lane::Accent:    return step + "ACCENT " + (s.accent ? "on" : "off") + "  -  louder, with the filter kick and accent sweep";
         case Lane::Glide:     return step + "GLIDE " + (s.glide ? "on" : "off") + "  -  slide into the next step's pitch over the Glide time (303 slide)";
-        case Lane::Tie:       return step + "TIE " + (s.tie ? "on" : "off") + "  -  hold into the next step without retriggering (no slide)";
         case Lane::Header:    return step + "-  the playing step lights up";
         case Lane::Reverse:
         case Lane::None:      break;

@@ -66,30 +66,44 @@ int main (int argc, char** argv)
     std::cout << "preset " << preset << " '" << processor->getProgramName (preset) << "'  peak " << peak
               << "  midi out events " << midiOutEvents << "  latency " << processor->getLatencySamples() << std::endl;
 
-    // the same pattern on the 303, through the Saturate distortion
+    // the same pattern on the 303: dry, through Saturate / Foldback at three drives, and with Layers
     {
+        struct Case { const char* name; float distOn, mode, drive, oscB, unison; };
+        const Case cases[] = { { "303_dry", 0, 0, 0, 0, 1 },
+                               { "303_sat_drive0", 1, 0, 0, 0, 1 }, { "303_sat_drive50", 1, 0, 50, 0, 1 }, { "303_sat_drive100", 1, 0, 100, 0, 1 },
+                               { "303_fold_drive0", 1, 1, 0, 0, 1 }, { "303_fold_drive50", 1, 1, 50, 0, 1 }, { "303_fold_drive100", 1, 1, 100, 0, 1 },
+                               { "303_layers", 0, 0, 0, 60, 4 } };
         processor->setParameterValue ("engine", 1.0f);
-        processor->setParameterValue ("distOn", 1.0f);
-        processor->setParameterValue ("distDrive", 40.0f);
-        head.ppq = 0.0;
-        processor->setPlayHead (&head);
-        AudioBuffer<float> out303 (2, (int) sr * 4);
-        float peak303 = 0.0f;
-        for (int pos = 0; pos + block <= out303.getNumSamples(); pos += block)
+        for (const auto& k : cases)
         {
-            midi.clear();
-            processor->processBlock (buf, midi);
-            for (int c = 0; c < 2; ++c)
-                out303.copyFrom (c, pos, buf, c, 0, block);
-            peak303 = jmax (peak303, buf.getMagnitude (0, block));
-            head.ppq += block / sr * head.bpm / 60.0;
+            processor->setParameterValue ("distOn", k.distOn);
+            processor->setParameterValue ("distMode", k.mode);
+            processor->setParameterValue ("distDrive", k.drive);
+            processor->setParameterValue ("distAmount", 100.0f);
+            processor->setParameterValue ("oscBLevel", k.oscB);
+            processor->setParameterValue ("unisonVoices", k.unison);
+            processor->reset();
+            head.ppq = 0.0;
+            AudioBuffer<float> o (2, (int) sr * 4);
+            for (int pos = 0; pos + block <= o.getNumSamples(); pos += block)
+            {
+                midi.clear();
+                processor->processBlock (buf, midi);
+                for (int c = 0; c < 2; ++c)
+                    o.copyFrom (c, pos, buf, c, 0, block);
+                head.ppq += block / sr * head.bpm / 60.0;
+            }
+            auto f = outDir.getChildFile (String (k.name) + ".wav");
+            f.deleteFile();
+            if (auto writer = std::unique_ptr<AudioFormatWriter> (wav.createWriterFor (new FileOutputStream (f), sr, 2, 24, {}, 0)))
+                writer->writeFromAudioSampleBuffer (o, 0, o.getNumSamples());
+            const int skip = (int) sr / 2;   // past the parameter smoothing
+            std::cout << k.name << "  peak " << o.getMagnitude (skip, o.getNumSamples() - skip)
+                      << "  rms dB " << Decibels::gainToDecibels (o.getRMSLevel (0, skip, o.getNumSamples() - skip)) << std::endl;
         }
-        auto f303 = outDir.getChildFile ("render_303.wav");
-        f303.deleteFile();
-        if (auto writer = std::unique_ptr<AudioFormatWriter> (wav.createWriterFor (new FileOutputStream (f303), sr, 2, 24, {}, 0)))
-            writer->writeFromAudioSampleBuffer (out303, 0, out303.getNumSamples());
-        std::cout << "303 + saturate  peak " << peak303 << std::endl;
         processor->setParameterValue ("distOn", 0.0f);
+        processor->setParameterValue ("oscBLevel", 0.0f);
+        processor->setParameterValue ("unisonVoices", 1.0f);
     }
 
     // screenshots

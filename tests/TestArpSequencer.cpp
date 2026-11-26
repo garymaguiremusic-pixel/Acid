@@ -121,7 +121,8 @@ TEST_CASE ("Factory notation becomes sequencer steps", "[presets]")
     REQUIRE (s[1].glide);                // slide -> Glide (slides into D)
     REQUIRE_FALSE (s[1].tie);
     REQUIRE (s[3].isRest());
-    REQUIRE (s[4].tie);                  // tied into the next step (the _)
+    REQUIRE (s[4].glide);                // held into the next step (the _) by a same-pitch Glide
+    REQUIRE_FALSE (s[4].tie);
     REQUIRE (s[5].transpose == s[4].transpose);
     REQUIRE (s[6].transpose == 16);
     REQUIRE (s[6].ratchet == 2);

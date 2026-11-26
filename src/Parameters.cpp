@@ -171,7 +171,6 @@ String helpForParameter (const String& id)
         { scaleLock,   "Scale Lock: the Transpose numbers count notes of the scale, so everything stays in key." },
         { rndDensity,  "Randomise: the chance a step plays." },
         { rndRange,    "Randomise: the transpose range." },
-        { rndTieProb,  "Randomise: the chance a playing step ties (holds) into the next." },
         { rndVelMin,   "Randomise: lowest velocity." },
         { rndVelMax,   "Randomise: highest velocity." },
         { rndRatchet,  "Randomise: the chance a playing step gets 2-4 ratchet hits." },
@@ -179,7 +178,6 @@ String helpForParameter (const String& id)
         { rndLockPitch, "Keep the current transposes when randomising." },
         { rndLockVel,  "Keep the current velocities when randomising." },
         { rndLockRest, "Keep the Volume lane (and so the rests) when randomising." },
-        { rndLockTie,  "Keep the current ties when randomising." },
         { rndLockRatchet, "Keep the current ratchets when randomising." },
         { rndLockAccent, "Keep the current accents when randomising." },
         { rndFileNotes, "File Notes: Randomise picks pitches only from the last imported file's notes." },
@@ -365,7 +363,6 @@ AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     };
     setting (rndDensity, "Rnd Density", 0.0f, 100.0f, 75.0f);
     setting (rndRange, "Rnd Pitch Range", 0.0f, 24.0f, 12.0f);
-    setting (rndTieProb, "Rnd Tie Prob", 0.0f, 100.0f, 15.0f);
     setting (rndVelMin, "Rnd Vel Min", 1.0f, 127.0f, 60.0f);
     setting (rndVelMax, "Rnd Vel Max", 1.0f, 127.0f, 127.0f);
     setting (rndRatchet, "Rnd Ratchet Prob", 0.0f, 100.0f, 10.0f);
@@ -375,7 +372,6 @@ AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     settingToggle (rndLockPitch, "Rnd Lock Pitch", false);
     settingToggle (rndLockVel, "Rnd Lock Velocity", false);
     settingToggle (rndLockRest, "Rnd Lock Rests", false);
-    settingToggle (rndLockTie, "Rnd Lock Ties", false);
     settingToggle (rndLockRatchet, "Rnd Lock Ratchets", false);
     settingToggle (rndLockAccent, "Rnd Lock Accents", false);
     settingToggle (rndFileNotes, "Rnd File Notes", false);

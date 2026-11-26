@@ -37,8 +37,13 @@ VoiceSettings Voice303::mapSettings (const Settings303& s)
 
     v.slideMs = s.slideMs * (s.slowSlide ? 2.0f : 1.0f);
     v.oscALock = s.phaseReset;
-    v.unisonVoices = 1;
-    v.oscBLevel = 0.0f;
+    v.oscBLevel = clampf (s.oscBLevel, 0.0f, 1.0f);
+    v.oscBTuneSemis = s.oscBTuneSemis;
+    v.oscBDetuneCents = s.oscBDetuneCents;
+    v.oscBLock = s.oscBLock;
+    v.unisonVoices = std::clamp (s.unisonVoices, 1, Voice::kMaxUnison);
+    v.unisonSpread = clampf (s.unisonSpread, 0.0f, 1.0f);
+    v.unisonFree = s.unisonFree;
     return v;
 }
 
@@ -70,19 +75,25 @@ void Voice303::noteOn (int midiNote, bool accent, bool legato, float level, bool
     voice.noteOn (midiNote, accent, legato, level, 1.0f, glide);
 }
 
-void Voice303::render (float* left, float* right, int numSamples) noexcept
+void Voice303::render (float* left, float* right, int numSamples, const VoiceMod& lfo) noexcept
 {
     const bool vib = set.vibrato, wander = set.model == Settings303::Drift;
     int pos = 0;
     while (pos < numSamples)
     {
         const int n = std::min (numSamples - pos, (int) pitchMod.size());
+        auto offset = [pos] (const float* p) { return p != nullptr ? p + pos : nullptr; };
         VoiceMod mod;
+        mod.cutoffOct = offset (lfo.cutoffOct);
+        mod.wave      = offset (lfo.wave);
+        mod.resonance = offset (lfo.resonance);
+        mod.volume    = offset (lfo.volume);
+        mod.pitchSemis = offset (lfo.pitchSemis);
         if (vib || wander)
         {
             for (int i = 0; i < n; ++i)
             {
-                float p = 0.0f;
+                float p = lfo.pitchSemis != nullptr ? lfo.pitchSemis[pos + i] : 0.0f;
                 if (vib)
                 {
                     vibPhase += 5.5 / sr;
