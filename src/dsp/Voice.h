@@ -46,6 +46,10 @@ struct VoiceSettings
     bool  ampHold         = false;
     float ampReleaseMs    = 5.0f;
     float slideMs         = 60.0f;
+
+    /** De-click: the VCA's on / off edges are never brighter than the filter lets through
+        (the lower the cutoff, the softer the edge). On for the Acid synth. */
+    bool  smoothGate      = false;
 };
 
 /** Optional per-sample modulation (LFOs). Null pointers mean "no modulation". */
@@ -124,6 +128,7 @@ private:
     bool smoothersPrimed = false;
     float levelTarget = 1.0f, levelSm = 1.0f;
     float velTarget = 1.0f, velSm = 1.0f;
+    float vcaSm[2] {};
     int activeVoices = 1;
     bool stereo = false;
 };

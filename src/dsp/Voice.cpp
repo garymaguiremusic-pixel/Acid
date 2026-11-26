@@ -27,6 +27,7 @@ void Voice::prepare (double sampleRate)
 
 void Voice::reset()
 {
+    vcaSm[0] = vcaSm[1] = 0.0f;
     ladderL.reset();
     ladderR.reset();
     filterEnv.reset();
@@ -194,6 +195,16 @@ void Voice::render (float* left, float* right, int numSamples, const VoiceMod& m
         levelSm += (levelTarget - levelSm) * smoothCoef;
         float vca = amp * levelSm * (1.0f + 0.9f * accentPulse);
         if (mod.volume) vca *= mod.volume[m];
+        if (set.smoothGate)
+        {
+            // two one-pole stages a little above the cutoff: the gain changes no faster than the
+            // filtered sound itself, so a note starting or stopping never clicks
+            const float fc = clampf (cutoff * 2.0f, 60.0f, 12000.0f);
+            const float k = 1.0f - std::exp (-kTwoPi * fc / (float) sr);
+            vcaSm[0] += (vca - vcaSm[0]) * k;
+            vcaSm[1] += (vcaSm[0] - vcaSm[1]) * k;
+            vca = vcaSm[1];
+        }
 
         // --- oversampled audio ---------------------------------------------------------
         float outL[2], outR[2];

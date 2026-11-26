@@ -395,9 +395,9 @@ AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     number (unisonVoices, "Unison Voices", 1.0f, 8.0f, 1.0f);
     knob (unisonSpread, "Unison Spread", 25.0f);
     toggle (unisonFree, "Unison Free", true);
-    knob (ampAttack,  "Amp Attack",  13.0f);   // 0.25 ms
+    knob (ampAttack,  "Amp Attack",  0.0f);    // 1 ms
     knob (ampDecay,   "Amp Decay",   100.0f);  // hold
-    knob (ampRelease, "Amp Release", 22.0f);   // 4.5 ms
+    knob (ampRelease, "Amp Release", 0.0f);    // 10 ms
     toggle (echoSync, "Echo Sync", true);
     knob (echoTime,     "Echo Time",     knobForDivision (8, (int) echoDivisions().size()));   // 1/8
     knob (echoMix,      "Echo Mix",      15.0f);

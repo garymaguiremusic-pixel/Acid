@@ -187,10 +187,10 @@ inline float norm100 (float v)                      { return juce::jlimit (0.0f,
 inline float cutoffToHz (float v)       { return expMap (v, 20.0f, 20000.0f); }
 inline float decayToMs (float v)        { return expMap (v, 30.0f, 3000.0f); }
 inline float envAttackToMs (float v)    { return expMap (v, 0.3f, 30.0f); }
-inline float ampAttackToMs (float v)    { return expMap (v, 0.1f, 100.0f); }
+inline float ampAttackToMs (float v)    { return expMap (v, 1.0f, 100.0f); }    // 1 ms and up: no click as a note starts
 inline bool  ampDecayHolds (float v)    { return v >= 99.5f; }
 inline float ampDecayToMs (float v)     { return expMap (v, 10.0f, 10000.0f); }
-inline float ampReleaseToMs (float v)   { return expMap (v, 1.0f, 1000.0f); }
+inline float ampReleaseToMs (float v)   { return expMap (v, 10.0f, 1000.0f); }  // 10 ms and up: no click as a note ends
 inline float echoFreeMs (float v)       { return expMap (v, 10.0f, 2000.0f); }
 inline float echoFeedbackGain (float v) { return norm100 (v) * 0.95f; }
 inline float echoLowCutHz (float v)     { return expMap (v, 20.0f, 2000.0f); }

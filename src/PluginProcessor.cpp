@@ -473,6 +473,7 @@ void AcidAudioProcessor::updateSettings() noexcept
     v.ampDecayMs      = ampDecayToMs (P.ampDecay->load());
     v.ampReleaseMs    = ampReleaseToMs (P.ampRelease->load());
     v.slideMs         = P.slideTime->load();
+    v.smoothGate      = true;     // the Acid synth: no clicks however low the cutoff
     voice.setSettings (v);
 
     Settings303 b;
@@ -1092,9 +1093,9 @@ void AcidAudioProcessor::randomisePatch()
     set (oscBLock, chance (0.35f) ? 1.0f : 0.0f);
     set (unisonVoices, chance (0.7f) ? 1.0f : range (2.0f, 5.0f));
     set (unisonSpread, range (10.0f, 60.0f));
-    set (ampAttack, range (5.0f, 20.0f));
+    set (ampAttack, range (0.0f, 15.0f));
     set (ampDecay, chance (0.6f) ? 100.0f : range (55.0f, 95.0f));
-    set (ampRelease, range (10.0f, 35.0f));
+    set (ampRelease, range (0.0f, 25.0f));
 
     // hard sync and FM: now and then, in moderation
     set (oscSync, chance (0.2f) ? 1.0f : 0.0f);
