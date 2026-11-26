@@ -73,7 +73,7 @@ void PresetManager::loadFactory (int index)
 
     resetAllParameters();
     for (auto& [id, value] : preset.params)
-        applyParameter (id, value);
+        applyParameter (id, isHzKnob (id) ? legacyKnobToHz (id, value) : value);   // factory values are knob positions
 
     const auto converted = patternFromNotation (preset.pattern);
     processor.setPattern (converted.pattern, converted.length);
@@ -92,9 +92,14 @@ bool PresetManager::loadFile (const File& file)
         return false;
 
     resetAllParameters();
+    const int fileVersion = (int) json.getProperty ("version", 0);
     if (auto* params = json.getProperty ("params", var()).getDynamicObject())
         for (auto& prop : params->getProperties())
-            applyParameter (prop.name.toString(), (float) prop.value);
+        {
+            const auto id = prop.name.toString();
+            const float v = (float) prop.value;
+            applyParameter (id, fileVersion < 3 && isHzKnob (id) ? legacyKnobToHz (id, v) : v);   // older files: knob positions
+        }
 
     if (auto xml = parseXML (json.getProperty ("pattern", "").toString()))
         processor.restorePattern (ValueTree::fromXml (*xml));

@@ -66,13 +66,23 @@ void AcidKnob::setValueWithGesture (double v)
     if (onGestureEnd) onGestureEnd();
 }
 
+void AcidKnob::setLogRange (double lo, double hi, int steps)
+{
+    logMode = true;
+    logSteps = jmax (1, steps);
+    setNormalisableRange (NormalisableRange<double> (lo, hi,
+        [] (double a, double b, double p) { return a * std::pow (b / a, jlimit (0.0, 1.0, p)); },
+        [] (double a, double b, double v) { return jlimit (0.0, 1.0, std::log (jlimit (a, b, v) / a) / std::log (b / a)); },
+        [] (double a, double b, double v) { return jlimit (a, b, std::round (v)); }));
+}
+
 void AcidKnob::mouseDown (const MouseEvent& e)
 {
     if (! isEnabled())
         return;
     dragging = true;
     lastDragY = e.position.y;
-    dragValue = getValue();
+    dragValue = logMode ? valueToProportionOfLength (getValue()) : getValue();
     if (onGestureBegin) onGestureBegin();
     repaint();
 }
@@ -84,6 +94,17 @@ void AcidKnob::mouseDrag (const MouseEvent& e)
 
     const double pixels = (double) (lastDragY - e.position.y);
     lastDragY = e.position.y;
+
+    if (logMode)
+    {
+        // log knob: full range in about 200 pixels, landing on the musical steps
+        dragValue = jlimit (0.0, 1.0, dragValue + pixels / 200.0);
+        const double p = std::round (dragValue * logSteps) / logSteps;
+        const double v = std::round (proportionOfLengthToValue (p));
+        if (std::abs (v - getValue()) > 1.0e-9)
+            setValue (v, sendNotificationSync);
+        return;
+    }
 
     // full range in about 200 pixels (small ranges: one step per 12 pixels), always whole steps
     const double range = getMaximum() - getMinimum();
@@ -120,6 +141,15 @@ void AcidKnob::mouseWheelMove (const MouseEvent&, const MouseWheelDetails& wheel
     if (std::abs (dir) < 1.0e-6f)
         return;
 
+    if (logMode)
+    {
+        // one notch = one musical step (from wherever the exact value is)
+        const double p = valueToProportionOfLength (getValue()) * logSteps;
+        const double next = (dir > 0.0f ? std::floor (p + 1.0e-6) + 1.0 : std::ceil (p - 1.0e-6) - 1.0) / logSteps;
+        setValueWithGesture (std::round (proportionOfLengthToValue (jlimit (0.0, 1.0, next))));
+        return;
+    }
+
     // one notch = one step of 1.0
     setValueWithGesture (std::round (getValue()) + (dir > 0.0f ? 1.0 : -1.0));
 }
@@ -133,7 +163,10 @@ KnobAttachment::KnobAttachment (RangedAudioParameter& p, AcidKnob& k)
       attachment (p, [this] (float v) { knob.setValue (v, dontSendNotification); knob.repaint(); })
 {
     const auto range = p.getNormalisableRange();
-    knob.setRange (range.start, range.end, 1.0);
+    if (acid::isHzKnob (p.getParameterID()))
+        knob.setLogRange (range.start, range.end);
+    else
+        knob.setRange (range.start, range.end, 1.0);
     knob.setDefaultValue (p.convertFrom0to1 (p.getDefaultValue()));
     knob.setBipolar (range.start < 0.0f && range.end > 0.0f);
     if (knob.helpText.isEmpty())

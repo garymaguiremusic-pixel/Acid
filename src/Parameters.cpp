@@ -82,9 +82,7 @@ float parseParameter (const String& id, const String& text)
     auto hz = [&] { return number * ((t.contains ("k") && ! t.contains ("ms")) ? 1000.0f : 1.0f); };
     auto ms = [&] { return number * ((t.endsWith ("s") && ! t.endsWith ("ms")) ? 1000.0f : 1.0f); };
 
-    if (id == cutoff || id == cutoffLow)   return inverse (hz(), 20.0f, 20000.0f);
-    if (id == echoLowCut)                  return inverse (hz(), 20.0f, 2000.0f);
-    if (id == echoHighCut)                 return inverse (hz(), 1000.0f, 20000.0f);
+    if (isHzKnob (id))                     return hzKnobRange (id).clipValue (std::round (hz()));   // exact Hz
     if (id == decay || id == accDecay)     return inverse (ms(), 30.0f, 3000.0f);
     if (id == envAttack)                   return inverse (ms(), 0.3f, 30.0f);
     if (id == ampAttack || id == b3AmpAttack)   return inverse (ms(), 1.0f, 100.0f);
@@ -102,7 +100,7 @@ String describeParameter (const String& id, float v)
     if (id == tune || id == oscBTune || id == b3Tuning) return signedText (v, " st");
     if (id == oscAOctave || id == oscBOctave || id == b3Octave) return "OCT " + String (v > 0.0f ? "+" : "") + String (roundToInt (v));
     if (id == volume || id == bass || id == treble || id == tubeInput || id == tubeOutput) return signedText (v, " dB");
-    if (id == cutoff || id == cutoffLow) return formatHz (cutoffToHz (v));
+    if (isHzKnob (id))                   return String (roundToInt (v)) + " Hz";     // exact, whole Hz
     if (id == decay || id == accDecay)   return formatMs (decayToMs (v));
     if (id == envAttack)                 return formatMs (envAttackToMs (v));
     if (id == arpGate)                   return formatNumber (v) + " %";
@@ -119,8 +117,6 @@ String describeParameter (const String& id, float v)
     if (id == ampDecay || id == b3AmpDecay)     return ampDecayHolds (v) ? String ("Hold") : formatMs (ampDecayToMs (v));
     if (id == ampRelease || id == b3AmpRelease) return formatMs (ampReleaseToMs (v));
     if (id == echoFeedback)              return String (roundToInt (echoFeedbackGain (v) * 100.0f)) + " %";
-    if (id == echoLowCut)                return formatHz (echoLowCutHz (v));
-    if (id == echoHighCut)               return formatHz (echoHighCutHz (v));
     if (id == echoTime)                  return formatMs (echoFreeMs (v)) + " / " + echoDivisions()[(size_t) divisionIndex (v, (int) echoDivisions().size())].name;
     if (id == tubeEdgeLow || id == tubeXover1 || id == tubeXover2 || id == tubeEdgeHigh) return formatHz (v);
     if (endsWith (id, "Gain"))           return signedText (v, " dB");
@@ -299,6 +295,20 @@ AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
                                                             NormalisableRange<float> (lo, hi, 1.0f), def, attributes));
     };
     auto knob = [&number] (const String& id, const String& name, float def) { number (id, name, 0.0f, 100.0f, def); };
+    // in Hz, exact to 1 Hz; the host's automation lane (and the knob) run on a log scale
+    auto hzKnob = [&layout] (const String& id, const String& name, float def)
+    {
+        const auto r = hzKnobRange (id);
+        const float lo = r.getStart(), hi = r.getEnd();
+        NormalisableRange<float> range (lo, hi,
+            [] (float a, float b, float p) { return a * std::pow (b / a, jlimit (0.0f, 1.0f, p)); },
+            [] (float a, float b, float v) { return jlimit (0.0f, 1.0f, std::log (jlimit (a, b, v) / a) / std::log (b / a)); },
+            [] (float a, float b, float v) { return jlimit (a, b, std::round (v)); });
+        auto attributes = AudioParameterFloatAttributes()
+            .withStringFromValueFunction ([id] (float v, int) { return describeParameter (id, v); })
+            .withValueFromStringFunction ([id] (const String& s) { return parseParameter (id, s); });
+        layout.add (std::make_unique<AudioParameterFloat> (ParameterID { id, 1 }, name, range, def, attributes));
+    };
 
     auto frequency = [&layout] (const String& id, const String& name, float def)
     {
@@ -330,8 +340,8 @@ AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     // Synth
     choice (wave, "Wave", waveNames(), 0);
     toggle (retro, "Retro", false);
-    knob (cutoffLow, "Cutoff Low", 30.0f);
-    knob (cutoff,    "Cutoff",     45.0f);
+    hzKnob (cutoffLow, "Cutoff Low", 160.0f);
+    hzKnob (cutoff,    "Cutoff",     450.0f);
     knob (resonance, "Resonance",  65.0f);
     toggle (transistor, "Transistor", false);
     choice (engine, "Synth", engineNames(), 0);
@@ -463,8 +473,8 @@ AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     knob (echoTime,     "Delay Time",     knobForDivision (8, (int) echoDivisions().size()));   // 1/8
     knob (echoMix,      "Delay Mix",      15.0f);
     knob (echoFeedback, "Delay Feedback", 45.0f);
-    knob (echoLowCut,   "Delay Low Cut",  31.0f);   // ~83 Hz
-    knob (echoHighCut,  "Delay High Cut", 49.0f);   // ~4.3 kHz
+    hzKnob (echoLowCut,  "Delay Low Cut",  83.0f);
+    hzKnob (echoHighCut, "Delay High Cut", 4340.0f);
     knob (echoWidth,    "Delay Width",    80.0f);
 
     for (int i = 0; i < 2; ++i)

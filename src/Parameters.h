@@ -13,7 +13,7 @@
 //==============================================================================
 namespace acid
 {
-inline constexpr int kStateVersion = 2;   // 2: ArpSampler sequencer
+inline constexpr int kStateVersion = 3;   // 2: ArpSampler sequencer; 3: Cutoff, Cut Low, Delay Low / High Cut in Hz
 
 /** The note a sequence's transpose 0 plays from (the Key's root in this octave): C1 = 36, bass register. */
 inline constexpr int kSequenceBaseNote = 36;
@@ -211,6 +211,24 @@ inline float echoFreeMs (float v)       { return expMap (v, 10.0f, 2000.0f); }
 inline float echoFeedbackGain (float v) { return norm100 (v) * 0.95f; }
 inline float echoLowCutHz (float v)     { return expMap (v, 20.0f, 2000.0f); }
 inline float echoHighCutHz (float v)    { return expMap (v, 1000.0f, 20000.0f); }
+
+/** Knobs whose parameter is in Hz (exact values; the knob still moves in 100 musical steps). */
+inline bool isHzKnob (const juce::String& id)
+{
+    return id == ParamIDs::cutoff || id == ParamIDs::cutoffLow || id == ParamIDs::echoLowCut || id == ParamIDs::echoHighCut;
+}
+inline juce::Range<float> hzKnobRange (const juce::String& id)
+{
+    if (id == ParamIDs::echoLowCut)  return { 20.0f, 2000.0f };
+    if (id == ParamIDs::echoHighCut) return { 1000.0f, 20000.0f };
+    return { 20.0f, 20000.0f };
+}
+/** Older presets and sessions stored these as knob positions (0 - 100): to Hz. */
+inline float legacyKnobToHz (const juce::String& id, float knob)
+{
+    const auto r = hzKnobRange (id);
+    return std::round (expMap (knob, r.getStart(), r.getEnd()));
+}
 inline float lfoFreeHz (float v)        { return expMap (v, 0.05f, 20.0f); }
 
 /** Tempo divisions: name and length in quarter notes. */

@@ -21,6 +21,9 @@ public:
     Size getKnobSize() const noexcept           { return knobSize; }
     void setDefaultValue (double v) noexcept    { defaultValue = v; }
     void setBipolar (bool b) noexcept           { bipolar = b; }
+    /** A knob over a value in Hz: drawn on a log scale, and drag / wheel move in 'steps'
+        musical steps (the value itself is exact, so typed or automated values stay as set). */
+    void setLogRange (double lo, double hi, int steps = 100);
     bool isBipolar() const noexcept             { return bipolar; }
 
     /** Thin modulation arc (as a fraction of the knob range, 0 = none). */
@@ -51,6 +54,8 @@ private:
     Size knobSize;
     juce::String label;
     double defaultValue = 0.0;
+    bool logMode = false;
+    int logSteps = 100;
     float lastDragY = 0.0f;
     double dragValue = 0.0;
     bool dragging = false, hovering = false, bipolar = false;

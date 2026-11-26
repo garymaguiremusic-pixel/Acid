@@ -446,8 +446,8 @@ void AcidAudioProcessor::updateSettings() noexcept
     v.tuneSemis       = P.tune->load() + 12.0f * P.oscAOctave->load();
     v.waveMorph       = P.wave->load() > 0.5f ? 1.0f : 0.0f;
     v.retro           = P.retro->load() > 0.5f;
-    v.cutoffHz        = cutoffToHz (P.cutoff->load());
-    v.cutoffLowHz     = cutoffToHz (P.cutoffLow->load());
+    v.cutoffHz        = P.cutoff->load();          // in Hz
+    v.cutoffLowHz     = P.cutoffLow->load();
     v.resonance       = norm100 (P.resonance->load());
     v.envMod          = norm100 (P.envMod->load());
     v.decayMs         = decayToMs (P.decay->load());
@@ -564,8 +564,8 @@ void AcidAudioProcessor::updateSettings() noexcept
     }
     e.mix       = norm100 (P.echoMix->load());
     e.feedback  = echoFeedbackGain (P.echoFeedback->load());
-    e.lowCutHz  = echoLowCutHz (P.echoLowCut->load());
-    e.highCutHz = echoHighCutHz (P.echoHighCut->load());
+    e.lowCutHz  = P.echoLowCut->load();          // in Hz
+    e.highCutHz = P.echoHighCut->load();
     e.width     = norm100 (P.echoWidth->load());
     echo.setSettings (e);
 
@@ -1065,8 +1065,8 @@ void AcidAudioProcessor::randomisePatch()
     const float mode = r.nextFloat();
     set (filterMode, mode < 0.72f ? 0.0f : (mode < 0.86f ? 1.0f : 2.0f));
     set (transistor, chance (0.25f) ? 1.0f : 0.0f);
-    set (cutoff, range (22.0f, 58.0f));
-    set (cutoffLow, range (10.0f, 50.0f));
+    set (cutoff, legacyKnobToHz (cutoff, range (22.0f, 58.0f)));
+    set (cutoffLow, legacyKnobToHz (cutoffLow, range (10.0f, 50.0f)));
     set (resonance, range (45.0f, 90.0f));
     set (drive, range (0.0f, 55.0f));
     set (bass, range (-3.0f, 6.0f));
@@ -1106,8 +1106,8 @@ void AcidAudioProcessor::randomisePatch()
     set (echoTime, knobForDivision (echoDivs[r.nextInt (5)], (int) echoDivisions().size()));
     set (echoMix, range (0.0f, 35.0f));
     set (echoFeedback, range (20.0f, 70.0f));
-    set (echoLowCut, range (20.0f, 50.0f));
-    set (echoHighCut, range (30.0f, 70.0f));
+    set (echoLowCut, legacyKnobToHz (echoLowCut, range (20.0f, 50.0f)));
+    set (echoHighCut, legacyKnobToHz (echoHighCut, range (30.0f, 70.0f)));
     set (echoWidth, range (40.0f, 100.0f));
 
     // LFOs: each one on about half the time, mostly on the cutoff
@@ -1247,6 +1247,15 @@ void AcidAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
     }
     state.removeChild (patternTree, nullptr);
     state.removeChild (legacyTree, nullptr);
+
+    // sessions before version 3 stored Cutoff, Cut Low and the delay cuts as knob positions
+    if ((int) state.getProperty ("stateVersion", 0) < 3)
+        for (auto child : state)
+        {
+            const auto id = child.getProperty ("id").toString();
+            if (isHzKnob (id) && child.hasProperty ("value"))
+                child.setProperty ("value", legacyKnobToHz (id, (float) child.getProperty ("value")), nullptr);
+        }
 
     apvts.replaceState (state);
 
