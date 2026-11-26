@@ -14,9 +14,12 @@ public:
     SegmentedButtons (juce::RangedAudioParameter&, const juce::StringArray& labels, const juce::String& tooltip);
 
     void resized() override;
+    /** Lays the buttons out in this many rows (default 1). */
+    void setRows (int r)    { rows = juce::jmax (1, r); resized(); }
 
 private:
     void select (int index);
+    int rows = 1;
 
     juce::RangedAudioParameter& param;
     juce::OwnedArray<juce::TextButton> buttons;

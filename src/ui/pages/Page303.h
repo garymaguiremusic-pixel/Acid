@@ -18,6 +18,7 @@ private:
     SegmentedButtons waveButtons;
     OctaveStepper octave;
     juce::TextButton optionsButton { juce::CharPointer_UTF8 ("Options \xe2\x96\xbe") };
+    juce::TextButton velocityButton { "Velocity" };
     AcidKnob tuning { AcidKnob::Size::Small, "Tuning" }, cutoff { AcidKnob::Size::Small, "Cutoff" },
              resonance { AcidKnob::Size::Small, "Resonance" }, envMod { AcidKnob::Size::Small, "Env Mod" },
              decay { AcidKnob::Size::Small, "Decay" }, accent { AcidKnob::Size::Small, "Accent" },

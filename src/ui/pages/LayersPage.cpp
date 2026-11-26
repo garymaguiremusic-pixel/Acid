@@ -3,8 +3,20 @@
 using namespace juce;
 using namespace acid;
 
+namespace
+{
+    // two columns, lined up with the LFO panels below
+    constexpr float kLeftX = 8.0f, kRightX = 503.0f, kColW = 489.0f;
+    constexpr int kSmallH = 118;                    // Unison / Amp Envelope (stacked on the right)
+    constexpr int kTopH = kSmallH * 2 + 6;          // Osc B (left) is as tall as both
+    constexpr int kEchoY = kTopH + 6, kEchoH = 150;
+    constexpr int kLfoY = kEchoY + kEchoH + 6;
+    constexpr int kLfoPad = 52;                     // extra space above the LFO contents (centres them)
+}
+
 LayersPage::LayersPage (AcidAudioProcessor& p)
-    : PageBase (p), octaveB (*p.apvts.getParameter (ParamIDs::oscBOctave), "OSC B OCTAVE")
+    : PageBase (p), octaveB (*p.apvts.getParameter (ParamIDs::oscBOctave), "OSC B OCTAVE"),
+      fmDirection (*p.apvts.getParameter (ParamIDs::fmDirection), fmDirectionNames(), {})
 {
     using namespace ParamIDs;
     attach (oscBLevel, ParamIDs::oscBLevel);
@@ -12,6 +24,10 @@ LayersPage::LayersPage (AcidAudioProcessor& p)
     attach (oscBDetune, ParamIDs::oscBDetune);
     attach (oscBLockButton, ParamIDs::oscBLock);
     addAndMakeVisible (octaveB);
+    attach (syncButton, ParamIDs::oscSync);
+    attach (fmAmount, ParamIDs::fmAmount);
+    addAndMakeVisible (fmDirection);
+    setHelp (fmDirection, "FM DIRECTION  -  " + helpForParameter (ParamIDs::fmDirection));
     attach (unisonFree, ParamIDs::unisonFree);
     attach (voices, unisonVoices);
     attach (spread, unisonSpread);
@@ -92,65 +108,86 @@ void LayersPage::setupLfo (int i)
 
 void LayersPage::paint (Graphics& g)
 {
-    AcidLookAndFeel::drawPanel (g, { 8.0f, 0.0f, 250.0f, 150.0f }, "Osc B");
-    AcidLookAndFeel::drawPanel (g, { 264.0f, 0.0f, 290.0f, 150.0f }, "Unison");
-    AcidLookAndFeel::drawPanel (g, { 560.0f, 0.0f, 432.0f, 150.0f }, "Amp Envelope");
-    AcidLookAndFeel::drawPanel (g, { 8.0f, 156.0f, 984.0f, 150.0f }, "Echo");
-    AcidLookAndFeel::drawPanel (g, { 8.0f, 312.0f, 489.0f, (float) getHeight() - 312.0f }, "LFO 1");
-    AcidLookAndFeel::drawPanel (g, { 503.0f, 312.0f, 489.0f, (float) getHeight() - 312.0f }, "LFO 2");
+    AcidLookAndFeel::drawPanel (g, { kLeftX, 0.0f, kColW, (float) kTopH }, "Osc B");
+    AcidLookAndFeel::drawPanel (g, { kRightX, 0.0f, kColW, (float) kSmallH }, "Unison");
+    AcidLookAndFeel::drawPanel (g, { kRightX, (float) (kSmallH + 6), kColW, (float) kSmallH }, "Amp Envelope");
+    AcidLookAndFeel::drawPanel (g, { 8.0f, (float) kEchoY, 984.0f, (float) kEchoH }, "Echo");
+    AcidLookAndFeel::drawPanel (g, { kLeftX, (float) kLfoY, kColW, (float) (getHeight() - kLfoY) }, "LFO 1");
+    AcidLookAndFeel::drawPanel (g, { kRightX, (float) kLfoY, kColW, (float) (getHeight() - kLfoY) }, "LFO 2");
 
-    AcidLookAndFeel::drawSmallLabel (g, "Phase Mode", { 280.0f, 42.0f, 86.0f, 12.0f }, Justification::centredLeft);
+    // Osc B: a label over each control of the lower row, under its knob
+    const char* labels[] = { "Octave", "Phase", "Sync", "FM Direction" };
+    for (int i = 0; i < 4; ++i)
+        AcidLookAndFeel::drawSmallLabel (g, labels[i], { kLeftX + 10.0f + (float) i * 117.0f, 150.0f, 117.0f, 12.0f });
+    g.setColour (Theme::get().bevelDark);
+    g.drawHorizontalLine (140, kLeftX + 14.0f, kLeftX + kColW - 14.0f);
+    g.setColour (Colours::white.withAlpha (0.07f));
+    g.drawHorizontalLine (141, kLeftX + 14.0f, kLeftX + kColW - 14.0f);
+
+    AcidLookAndFeel::drawSmallLabel (g, "Phase Mode", { kRightX + 24.0f, 42.0f, 110.0f, 12.0f });
     for (int i = 0; i < 2; ++i)
     {
-        const float x0 = i == 0 ? 8.0f : 503.0f;
-        AcidLookAndFeel::drawSmallLabel (g, "Retrig", { x0 + 16.0f, 440.0f, 120.0f, 12.0f }, Justification::centredLeft);
-        AcidLookAndFeel::drawSmallLabel (g, "Destination", { x0, 492.0f, 489.0f, 12.0f });
+        const float x0 = i == 0 ? kLeftX : kRightX;
+        const float y = (float) (kLfoY - 312 + kLfoPad);
+        AcidLookAndFeel::drawSmallLabel (g, "Retrig", { x0 + 16.0f, 440.0f + y, 120.0f, 12.0f }, Justification::centredLeft);
+        AcidLookAndFeel::drawSmallLabel (g, "Destination", { x0, 492.0f + y, kColW, 12.0f });
     }
 }
 
 void LayersPage::layoutLfo (int i, int x0)
 {
     auto& c = lfo[i];
-    c.rate.setBounds (x0 + 16, 336, 76, 86);
-    c.depth.setBounds (x0 + 96, 336, 76, 86);
-    c.phase.setBounds (x0 + 176, 336, 76, 86);
-    c.preview.setBounds (x0 + 262, 336, 211, 96);
-    c.retrig.setBounds (x0 + 16, 454, 110, 22);
-    c.prevShape.setBounds (x0 + 262, 446, 28, 24);
-    c.sync.setBounds (x0 + 296, 446, 72, 24);
-    c.mirror.setBounds (x0 + 372, 446, 66, 24);
-    c.nextShape.setBounds (x0 + 445, 446, 28, 24);
+    const int y = kLfoY - 312 + kLfoPad;
+    c.rate.setBounds (x0 + 16, 336 + y, 76, 86);
+    c.depth.setBounds (x0 + 96, 336 + y, 76, 86);
+    c.phase.setBounds (x0 + 176, 336 + y, 76, 86);
+    c.preview.setBounds (x0 + 262, 336 + y, 211, 96);
+    c.retrig.setBounds (x0 + 16, 454 + y, 110, 22);
+    c.prevShape.setBounds (x0 + 262, 446 + y, 28, 24);
+    c.sync.setBounds (x0 + 296, 446 + y, 72, 24);
+    c.mirror.setBounds (x0 + 372, 446 + y, 66, 24);
+    c.nextShape.setBounds (x0 + 445, 446 + y, 28, 24);
     for (int d = 0; d < NumLfoDests; ++d)
-        c.dest[(size_t) d].setBounds (x0 + 14 + d * 93, 508, 88, 24);
-    c.readout.setBounds (x0 + 14, 544, 460, 26);
+        c.dest[(size_t) d].setBounds (x0 + 14 + d * 93, 508 + y, 88, 24);
+    c.readout.setBounds (x0 + 14, 544 + y, 460, 26);
 }
 
 void LayersPage::resized()
 {
-    oscBLevel.setBounds (22, 24, 72, 84);
-    oscBTune.setBounds (96, 24, 72, 84);
-    oscBDetune.setBounds (170, 24, 72, 84);
-    octaveB.setBounds (22, 116, 112, 24);
-    oscBLockButton.setBounds (140, 116, 102, 24);
+    // Osc B: four knobs across, the octave / phase / sync / FM direction row under them
+    const int ox = (int) kLeftX + 10, col = 117;
+    AcidKnob* oscKnobs[] = { &oscBLevel, &oscBTune, &oscBDetune, &fmAmount };
+    for (int i = 0; i < 4; ++i)
+        oscKnobs[i]->setBounds (ox + i * col + (col - 88) / 2, 32, 88, 96);
+    octaveB.setBounds (ox + 4, 168, col - 8, 26);
+    oscBLockButton.setBounds (ox + col + 4, 168, col - 8, 26);
+    syncButton.setBounds (ox + col * 2 + 4, 168, col - 8, 26);
+    fmDirection.setBounds (ox + col * 3 + 4, 168, col - 8, 26);
 
-    unisonFree.setBounds (280, 58, 86, 24);
-    voices.setBounds (382, 32, 72, 84);
-    spread.setBounds (466, 32, 72, 84);
+    // Unison: phase mode, voices, spread
+    const int rx = (int) kRightX;
+    unisonFree.setBounds (rx + 24, 58, 110, 26);
+    voices.setBounds (rx + 190, 26, 80, 86);
+    spread.setBounds (rx + 300, 26, 80, 86);
 
-    ampAttack.setBounds (576, 32, 72, 84);
-    ampDecay.setBounds (656, 32, 72, 84);
-    ampRelease.setBounds (736, 32, 72, 84);
-    ampLcd.setBounds (824, 58, 154, 26);
+    // Amp Envelope: attack, decay, release and the readout
+    const int ay = kSmallH + 6;
+    ampAttack.setBounds (rx + 14, ay + 26, 80, 86);
+    ampDecay.setBounds (rx + 104, ay + 26, 80, 86);
+    ampRelease.setBounds (rx + 194, ay + 26, 80, 86);
+    ampLcd.setBounds (rx + 290, ay + 56, 184, 26);
 
-    echoSync.setBounds (24, 212, 72, 24);
+    // Echo
+    const int ey = kEchoY - 156;
+    echoSync.setBounds (24, 212 + ey, 72, 24);
     const int ex = 120, step = 104;
     AcidKnob* echoKnobs[] = { &echoTime, &echoMix, &echoFeedback, &echoLowCut, &echoHighCut, &echoWidth };
     for (int i = 0; i < 6; ++i)
-        echoKnobs[i]->setBounds (ex + i * step, 184, 84, 88);
-    echoLcd.setBounds (764, 212, 212, 26);
+        echoKnobs[i]->setBounds (ex + i * step, 184 + ey, 84, 88);
+    echoLcd.setBounds (764, 212 + ey, 212, 26);
 
-    layoutLfo (0, 8);
-    layoutLfo (1, 503);
+    layoutLfo (0, (int) kLeftX);
+    layoutLfo (1, (int) kRightX);
 }
 
 void LayersPage::update()

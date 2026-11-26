@@ -1,6 +1,7 @@
 #pragma once
 
 #include "PageBase.h"
+#include "../arp/Controls.h"
 
 class LayersPage : public PageBase
 {
@@ -25,7 +26,9 @@ private:
     void setupLfo (int index);
     void layoutLfo (int index, int x0);
 
-    juce::TextButton oscBLockButton { "Phase Lock" };
+    juce::TextButton oscBLockButton { "Phase Lock" }, syncButton { "Hard Sync" };
+    AcidKnob fmAmount { AcidKnob::Size::Small, "FM" };
+    SegmentedButtons fmDirection;
     OctaveStepper octaveB;
     AcidKnob oscBLevel { AcidKnob::Size::Small, "Level" }, oscBTune { AcidKnob::Size::Small, "Tune" }, oscBDetune { AcidKnob::Size::Small, "Detune" };
     juce::TextButton unisonFree { "Free" };

@@ -16,6 +16,7 @@ Page303::Page303 (AcidAudioProcessor& p)
     setHelp (optionsButton, "OPTIONS  -  VCO model, gate, VCA noise, vibrato, phase reset and the aged-part settings");
     addAndMakeVisible (optionsButton);
 
+    attach (velocityButton, b3VelLink);
     attach (tuning, b3Tuning);
     attach (cutoff, b3Cutoff);
     attach (resonance, b3Resonance);
@@ -67,6 +68,7 @@ void Page303::resized()
     waveButtons.setBounds (24, 56, 96, 26);
     octave.setBounds (24, 94, 96, 24);
     optionsButton.setBounds (24, 132, 96, 26);
+    velocityButton.setBounds (24, 166, 96, 26);
 
     AcidKnob* knobs[] = { &tuning, &cutoff, &resonance, &envMod, &decay, &accent, &volume };
     for (int i = 0; i < 7; ++i)

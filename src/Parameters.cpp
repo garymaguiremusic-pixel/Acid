@@ -131,14 +131,19 @@ String helpForParameter (const String& id)
         { b3WeakAccentCap, "An aged accent capacitor: accents build up further." },
         { b3InfSustain, "The VCA holds while the gate is open instead of decaying." },
         { b3SoftAccent, "A gentler accent." },
+        { b3VelLink,    "Velocity: the sequencer's Velocity lane (or the keys you play) sets each 303 note's level and filter." },
         { distPageOn,  "Dist: the whole Distortion page on / off." },
         { distOn,      "Saturate / Foldback distortion on / off." },
-        { distMode,    "Saturate: warm tanh clipping. Foldback: the wave folds back on itself." },
+        { distMode,    "Saturate: hard asymmetric clipping. Foldback: the wave folds back on itself. Overdrive: a pedal-style hard clip. "
+                       "Fuzz: square-wave fuzz. Scream: a resonant mid boost into the clipper. Rectify: rectified, an octave of grit on top." },
         { distDrive,   "How hard the distortion is driven." },
         { distAmount,  "Distort: how much of the distorted signal you hear." },
         { filterMode,  "Filter type: low-pass (classic), band-pass or high-pass, all from the same ladder." },
         { oscALock,    "Phase lock: Osc A (and its unison voices) starts every note at the same point of its wave." },
         { oscBLock,    "Phase lock: Osc B starts every note at the same point of its wave." },
+        { oscSync,     "Hard sync: Osc B restarts every cycle of Osc A. Turn Osc B Tune for the sync sweep." },
+        { fmAmount,    "FM: how far one oscillator modulates the other's pitch." },
+        { fmDirection, "FM direction: A > B (Osc A modulates Osc B) or B > A (Osc B modulates Osc A)." },
         { rndGlide,    "Randomise: the chance a playing step glides (slides) into the next." },
         { rndLockGlide, "Keep the current glides when randomising." },
         { filterVelLink, "Vel Link: velocity moves the cutoff. The sequencer's Velocity lane when it plays, the keys otherwise." },
@@ -303,6 +308,7 @@ AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     toggle (b3WeakAccentCap, "303 Weak Accent Cap", false);
     toggle (b3InfSustain,    "303 Infinite Sustain", false);
     toggle (b3SoftAccent,    "303 Soft Accent", false);
+    toggle (b3VelLink,       "303 Velocity", false);
 
     // Distortion page
     toggle (distPageOn, "Distortion On", true);
@@ -314,6 +320,9 @@ AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     choice (filterMode, "Filter Type", filterModeNames(), 0);
     toggle (oscALock, "Osc A Phase Lock", false);
     toggle (oscBLock, "Osc B Phase Lock", false);
+    toggle (oscSync, "Osc Hard Sync", false);
+    knob (fmAmount, "FM Amount", 0.0f);
+    choice (fmDirection, "FM Direction", fmDirectionNames(), 0);
     toggle (filterVelLink, "Filter Velocity Link", false);
     knob (filterVelAmount, "Filter Velocity Amount", 50.0f);
     number (bass,   "Bass",   -12.0f, 12.0f, 0.0f);

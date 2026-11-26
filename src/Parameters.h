@@ -56,6 +56,7 @@ namespace ParamIDs
     inline constexpr auto b3WeakAccentCap = "b3WeakAccentCap";
     inline constexpr auto b3InfSustain    = "b3InfSustain";
     inline constexpr auto b3SoftAccent    = "b3SoftAccent";
+    inline constexpr auto b3VelLink       = "b3VelLink";      // the sequencer's Velocity lane plays the 303
 
     // Distortion page
     inline constexpr auto distPageOn      = "distPageOn";     // the header's Dist button
@@ -67,6 +68,9 @@ namespace ParamIDs
     inline constexpr auto filterMode      = "filterMode";
     inline constexpr auto oscALock        = "oscALock";
     inline constexpr auto oscBLock        = "oscBLock";
+    inline constexpr auto oscSync         = "oscSync";        // hard sync: Osc B restarts with Osc A
+    inline constexpr auto fmAmount        = "fmAmount";
+    inline constexpr auto fmDirection     = "fmDirection";    // A > B or B > A
     inline constexpr auto filterVelLink   = "filterVelLink";
     inline constexpr auto filterVelAmount = "filterVelAmount";
     inline constexpr auto bass        = "bass";
@@ -166,7 +170,8 @@ inline juce::StringArray filterModeNames() { return { "LP", "BP", "HP" }; }
 inline juce::StringArray engineNames()     { return { "ACID", "303" }; }
 inline juce::StringArray b3WaveNames()     { return { "SAW", "SQR" }; }
 inline juce::StringArray b3ModelNames()    { return { "Classic", "Stable", "Drift" }; }
-inline juce::StringArray distModeNames()   { return { "SATURATE", "FOLDBACK" }; }
+inline juce::StringArray distModeNames()   { return { "SATURATE", "FOLDBACK", "OVERDRIVE", "FUZZ", "SCREAM", "RECTIFY" }; }
+inline juce::StringArray fmDirectionNames() { return { "A > B", "B > A" }; }
 inline juce::StringArray lfoShapeNames()   { return { "Sine", "Triangle", "Saw Up", "Saw Down", "Square", "S&H", "Smooth Random" }; }
 inline juce::StringArray lfoShapeShort()   { return { "SINE", "TRI", "SAW UP", "SAW DN", "SQUARE", "S&H", "SMOOTH" }; }
 inline juce::StringArray lfoRetrigNames()  { return { "Free", "Note", "Bar" }; }

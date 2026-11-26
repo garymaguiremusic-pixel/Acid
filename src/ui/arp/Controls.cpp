@@ -38,9 +38,20 @@ void SegmentedButtons::select (int index)
 void SegmentedButtons::resized()
 {
     const int n = buttons.size();
-    const float w = (float) getWidth() / (float) jmax (1, n);
+    const int perRow = jmax (1, (n + rows - 1) / rows);
+    const float w = (float) getWidth() / (float) perRow;
+    const float h = (float) getHeight() / (float) rows;
     for (int i = 0; i < n; ++i)
-        buttons[i]->setBounds (roundToInt (i * w), 0, roundToInt ((i + 1) * w) - roundToInt (i * w) + (i < n - 1 ? 1 : 0), getHeight());
+    {
+        const int col = i % perRow, row = i / perRow;
+        const bool lastInRow = col == perRow - 1 || i == n - 1;
+        const int y0 = roundToInt (row * h), y1 = roundToInt ((row + 1) * h);
+        buttons[i]->setBounds (roundToInt (col * w), y0, roundToInt ((col + 1) * w) - roundToInt (col * w) + (lastInRow ? 0 : 1),
+                               y1 - y0 + (row < rows - 1 ? 1 : 0));
+        if (rows > 1)
+            buttons[i]->setConnectedEdges ((col > 0 ? Button::ConnectedOnLeft : 0) | (! lastInRow ? Button::ConnectedOnRight : 0)
+                                           | (row > 0 ? Button::ConnectedOnTop : 0) | (row < rows - 1 ? Button::ConnectedOnBottom : 0));
+    }
 }
 
 //==============================================================================

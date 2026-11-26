@@ -14,6 +14,7 @@ TubePage::TubePage (AcidAudioProcessor& p)
     // Saturate / Foldback
     attach (distOnButton, distOn);
     setHelp (distOnButton, "ON  -  " + helpForParameter (distOn));
+    distModeButtons.setRows (2);
     addAndMakeVisible (distModeButtons);
     setHelp (distModeButtons, "MODE  -  " + helpForParameter (distMode));
     attach (distDrive, ParamIDs::distDrive);
@@ -75,7 +76,7 @@ void TubePage::resized()
 {
     // Saturate / Foldback
     distOnButton.setBounds (24, 30, 90, 28);
-    distModeButtons.setBounds (300, 56, 200, 28);
+    distModeButtons.setBounds (290, 56, 258, 56);
     distDrive.setBounds (560, 18, 120, 126);
     distAmount.setBounds (700, 18, 120, 126);
 
